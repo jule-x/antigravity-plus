@@ -1,10 +1,12 @@
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import type { PaseoApi } from "@getpaseo/client";
-import type { PluginHookAgent, PluginServerContext } from "@getpaseo/plugin/server";
+import type { PluginHookAgent, PluginHookContext, PluginServerContext } from "@getpaseo/plugin/server";
 import { PROVIDER_ID } from "./provider.ts";
 import { CLI_SUMMARIES_DB } from "./session-list.ts";
+
+type PaseoApi = PluginHookContext["paseo"];
+type PaseoAgentHandle = ReturnType<PaseoApi["agents"]["ref"]>;
 
 /** Host daemon packages resolved from the Paseo plugin runner when available. */
 const HOST_MODULES = [
@@ -167,7 +169,7 @@ export async function renameHostAgent(agentId: string, title: string): Promise<b
   }
 }
 
-async function readFirstUserPrompt(agent: ReturnType<PaseoApi["agents"]["ref"]>): Promise<string | null> {
+async function readFirstUserPrompt(agent: PaseoAgentHandle): Promise<string | null> {
   type Cursor = NonNullable<Parameters<typeof agent.timeline.refetch>[0]>["cursor"];
   let cursor: Cursor;
   for (let pageIndex = 0; pageIndex < MAX_TIMELINE_PAGES; pageIndex += 1) {

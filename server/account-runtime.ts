@@ -1,5 +1,8 @@
-import type { PaseoAgent, PaseoApi } from "@getpaseo/client";
+import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import type { ProviderConnection, ProviderInput } from "@getpaseo/plugin/server/provider";
+
+type PaseoApi = PluginHandlerContext["paseo"];
+type PaseoAgent = Awaited<ReturnType<PaseoApi["agents"]["list"]>>["entries"][number]["agent"];
 
 const transition = "An Antigravity+ account change is in progress. Please retry when it finishes.";
 
