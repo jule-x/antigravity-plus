@@ -22,12 +22,12 @@ The quota source reads agy's Google login from macOS Keychain (service `gemini`)
 
 ## Manual account switching
 
-Open **Antigravity+ accounts** in the sidebar to add Google consumer accounts. The plugin stores complete logins in macOS Keychain or Windows Credential Manager. Switching changes the shared agy login, so close standalone agy sessions and sessions using Paseo's built-in Antigravity provider first. Once all Antigravity+ turns are idle, you can switch accounts and continue a conversation. The accounts page shows the active account's latest reading and a dated snapshot for each standby account. When quota runs out, select the account alert in the composer and confirm the switch.
+Open **Antigravity+ accounts** in the sidebar to add Google consumer accounts. The plugin stores complete logins in macOS Keychain or Windows Credential Manager. Switching changes the shared agy login, so close standalone agy sessions and sessions using Paseo's built-in Antigravity provider first. Once all Antigravity+ turns are idle, you can switch accounts and continue a conversation. The accounts page shows the active account's latest reading and a dated snapshot for each standby account. When quota runs out, open **Quota → Manage accounts** in the composer to confirm a switch.
 
 ## Requirements
 
 - Paseo 0.16.0 or later and agy 1.5.8 or later, signed in.
-- macOS and Windows. The Windows companion requires Windows PowerShell. Linux is untested.
+- macOS and Windows. On Windows, credential storage (quota and account switching) and the companion hook require Windows PowerShell. Linux is untested.
 
 ## Limits
 

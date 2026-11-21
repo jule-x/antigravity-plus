@@ -22,12 +22,12 @@ Antigravity+ 为 Paseo 增加了一个通过 `agy acp`（Antigravity CLI 内置�
 
 ## 手动切换账号
 
-在侧栏的 **Antigravity+ accounts** 添加自己的 Google 消费者账号。完整登录凭据保存在 Windows 凭据管理器或 macOS 钥匙串中。切换会更新 agy 的共享登录，并保留本地会话历史。切换前先关闭独立 agy 和内置 Antigravity 提供商的会话，再等待 Antigravity+ 的轮次结束。账号页显示活跃账号最近的额度读数及备用账号的额度快照。
+在侧栏的 **Antigravity+ 账号** 添加自己的 Google 消费者账号。完整登录凭据保存在 Windows 凭据管理器或 macOS 钥匙串中。切换会更新 agy 的共享登录，并保留本地会话历史。切换前先关闭独立 agy 和内置 Antigravity 提供商的会话，再等待 Antigravity+ 的轮次结束。账号页显示活跃账号最近的额度读数及备用账号的额度快照；额度用尽时可在输入框点 **额度 → 管理账号** 确认切换。
 
 ## 环境要求
 
 - Paseo 0.16.0 及以上，已登录的 agy 1.5.8 及以上。
-- 支持 Windows 和 macOS。Windows 伴随插件需要 Windows PowerShell。Linux 未经测试。
+- 支持 Windows 和 macOS。Windows 下的凭据管理（额度与切号）及伴随插件钩子依赖系统自带的 Windows PowerShell。Linux 未经测试。
 
 ## 已知限制
 

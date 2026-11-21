@@ -29,13 +29,13 @@ Select an **Antigravity+** model to see **Quota** alongside the model and mode c
 
 ## Installation
 
-On Windows, follow the local checkout instructions. On macOS, install from the official Paseo plugin registry:
+Install from the official Paseo plugin registry (once the latest release is published):
 
 ```bash
 paseo plugin add jule-x/antigravity-plus
 ```
 
-Or install directly from GitHub:
+Or install the latest macOS & Windows build directly from GitHub:
 
 ```bash
 paseo plugin add git:jule-x/antigravity-plus
@@ -43,7 +43,7 @@ paseo plugin add git:jule-x/antigravity-plus
 
 ### Windows local checkout
 
-Run these commands from this Windows-compatible checkout in PowerShell. Installing from the registry or GitHub above fetches the macOS upstream. With the default Paseo Desktop installation, the launcher is bundled with the app.
+If you prefer installing from a local clone on Windows, run these commands from the repository root in PowerShell (with the default Paseo Desktop installation, the launcher is bundled with the app):
 
 ```powershell
 $paseoCli = Join-Path $env:LOCALAPPDATA 'Programs\Paseo\resources\bin\paseo.cmd'

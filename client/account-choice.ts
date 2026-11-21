@@ -25,7 +25,7 @@ export function quotaSummary(account: AccountView, active: boolean, quotaError: 
 /** The least remaining window limits how much of a standby account's measured quota is usable. */
 export function bestStandby(accounts: AccountView[], activeId: string) {
   let best: AccountView | undefined;
-  let bestScore = -1;
+  let bestScore = 0;
   for (const account of accounts) {
     if (account.id === activeId) continue;
     const score = minimumRemaining(account);

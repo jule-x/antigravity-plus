@@ -29,21 +29,21 @@ Antigravity+ 为 [Paseo](https://paseo.sh) 提供基于 `agy acp`（Antigravity 
 
 ## 安装方式
 
-Windows 请使用下方的本地安装方式。macOS 可以从 Paseo 官方插件商城安装：
+从 Paseo 官方插件商城安装（新版审核发布后同步包含 Windows 支持）：
 
 ```bash
 paseo plugin add jule-x/antigravity-plus
 ```
 
-或直接从 GitHub 安装：
+或直接从 GitHub 安装最新主分支（已包含 macOS 与 Windows 支持）：
 
 ```bash
 paseo plugin add git:jule-x/antigravity-plus
 ```
 
-### Windows 本地安装
+### Windows 本地源码安装
 
-从当前 Windows 适配版的本地源码目录运行以下 PowerShell 命令。上面的商城和 GitHub 安装命令会获取 macOS 上游版。
+如果希望在 Windows 上从本地克隆目录安装，在仓库根目录的 PowerShell 中运行以下命令：
 
 ```powershell
 $paseoCli = Join-Path $env:LOCALAPPDATA 'Programs\Paseo\resources\bin\paseo.cmd'

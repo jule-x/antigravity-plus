@@ -18,9 +18,10 @@ function state(accounts: AccountView[], quotaError = false): AccountsView {
   return { accounts, activeAccountId: a.id, quotaError, busy: false, notice: null };
 }
 
-test("exhausted quota with unmeasured standby opens accounts for a manual selection", () => {
+test("exhausted quota with unmeasured or depleted standby opens accounts for a manual selection", () => {
   const active = measured(a, 0);
   assert.deepEqual(composerChoice(state([active, b]), active), { depleted: true, confirmId: undefined });
+  assert.deepEqual(composerChoice(state([active, measured(b, 0)]), active), { depleted: true, confirmId: undefined });
 });
 
 test("agy quota errors suggest the standby with the largest measured minimum for confirmation", () => {
