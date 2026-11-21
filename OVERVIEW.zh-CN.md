@@ -14,20 +14,20 @@ Antigravity+ 为 Paseo 增加了一个通过 `agy acp`（Antigravity CLI 内置�
 
 ## 配置说明
 
-要强制拦截 `invoke_subagent`，需要将插件目录下的伴随插件 `agy-plugin/` 软链到 agy 的全局插件目录（`~/.gemini/config/plugins/`），具体软链命令见仓库 README。其 `PreToolUse` 钩子仅在带有 `ANTIGRAVITY_PLUS=1` 环境变量的 Antigravity+ 进程中拒绝 `invoke_subagent`；在其他任何 agy 进程中均返回 "allow"，而 agy 本身不会对 `invoke_subagent` 弹窗询问，因此不会影响终端或 IDE 中的其他 agy 会话。若未配置伴随插件，系统提示词仍会引导模型优先使用 Paseo 代理，但不会强制拦截。
+伴随插件使用 `PreToolUse` 钩子拦截 `invoke_subagent`。Windows 钩子通过 PowerShell 运行，macOS 钩子通过 `/bin/sh` 运行。钩子仅在带有 `ANTIGRAVITY_PLUS=1` 的 Antigravity+ 进程中拒绝调用，并放行其他 agy 会话中的调用。各平台的配置方式见仓库 README。
 
 ## 额度监控
 
-额度数据源从 macOS 钥匙串（服务名 `gemini`）读取 agy 的 Google 登录凭证，并带上本机 `agy` CLI 版本标识（`antigravity/cli/<version>`）向 Google 的 Antigravity 后端（`daily-cloudcode-pa.googleapis.com`）查询额度，展示套餐名称以及后端返回的全部额度组：Gemini 共享池（Gemini 4 Neon、Gemini 4 Hydrogen、Orchestrator (Neon) 与 Gemini 3.8 Flash）的周限额与 5 小时限额、Claude 与 GPT 模型的周限额与 5 小时限额，以及 Pro 套餐下 Gemini 4 Argon 的独立周限额。若摘要接口未返回 Google 模型组，则回退查询 `fetchAvailableModels`。访问令牌过期时，插件会执行一次 `agy models`，由 agy 刷新当前登录。
+额度数据源从 Windows 凭据管理器（`gemini:antigravity`）或 macOS 钥匙串（服务名 `gemini`）读取 agy 的 Google 登录凭据，并带上本机 `agy` CLI 版本标识（`antigravity/cli/<version>`）向 Google 的 Antigravity 后端（`daily-cloudcode-pa.googleapis.com`）查询额度。面板展示套餐名称和后端返回的额度组，包括 Gemini 共享池和 Claude/GPT 的周限额与 5 小时限额，以及 Pro 套餐下 Gemini 4 Argon 的独立周限额。若摘要接口未返回 Google 模型组，则回退查询 `fetchAvailableModels`。访问令牌过期时，插件会执行一次 `agy models`，由 agy 刷新当前登录。
 
 ## 手动切换账号
 
-在侧栏的 **Antigravity+ accounts** 添加自己的 Google 消费者账号。每个账号的完整登录凭证保存在 macOS 钥匙串中，agy 使用其中一个账号，所有账号共用本地会话历史。等 Antigravity+ 的轮次全部结束后，即可在账号页切换并续聊。账号页显示活跃号最近的实时读数，以及备用号在标注时间的额度快照。Google 的消费者套餐不支持自动切号，额度用尽时需在输入框点击账号提醒，确认后才会切换。
+在侧栏的 **Antigravity+ accounts** 添加自己的 Google 消费者账号。完整登录凭据保存在 Windows 凭据管理器或 macOS 钥匙串中。切换会更新 agy 的共享登录，并保留本地会话历史。切换前先关闭独立 agy 和内置 Antigravity 提供商的会话，再等待 Antigravity+ 的轮次结束。账号页显示活跃账号最近的额度读数及备用账号的额度快照。
 
 ## 环境要求
 
 - Paseo 0.16.0 及以上，已登录的 agy 1.5.8 及以上。
-- 仅支持 macOS：额度数据源读取 macOS 钥匙串，配套 agy 插件的 hook 通过 `/bin/sh` 运行。不支持 Windows，Linux 未经测试。
+- 支持 Windows 和 macOS。Windows 伴随插件需要 Windows PowerShell。Linux 未经测试。
 
 ## 已知限制
 

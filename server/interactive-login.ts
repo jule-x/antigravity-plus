@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { stripVTControlCharacters } from "node:util";
+import { terminateProcess } from "@getpaseo/plugin/server";
 import type { LoginStatus } from "../shared/accounts-rpc.ts";
 
 const failed = "Antigravity sign-in failed. Start again to get a new login link.";
@@ -40,7 +41,7 @@ class LoginAttempt {
     } catch { this.abort?.(failed); }
   }
 
-  async run(spawn: () => ChildProcessWithoutNullStreams, linkTimeout: number, loginTimeout: number) {
+  async run(spawn: () => ChildProcessWithoutNullStreams, linkTimeout: number, loginTimeout: number, stop: typeof terminateProcess) {
     if (this.cancelled) throw new Error(cancelled);
     let child: ChildProcessWithoutNullStreams;
     try { child = spawn(); } catch { throw new Error(failed); }
@@ -53,7 +54,7 @@ class LoginAttempt {
         failure = reason;
         this.status = { phase: "finishing" };
         // The journal may restore the slot only after this credential writer has exited.
-        child.kill("SIGKILL");
+        void stop(child).catch(() => child.kill("SIGKILL"));
       };
       this.abort = abort;
       const promptTimer = setTimeout(() => abort(missingLink), linkTimeout);
@@ -107,11 +108,13 @@ export class AccountLogins {
   private spawn: () => ChildProcessWithoutNullStreams;
   private linkTimeout: number;
   private loginTimeout: number;
+  private stop: typeof terminateProcess;
 
-  constructor(spawn: () => ChildProcessWithoutNullStreams, linkTimeout = 30_000, loginTimeout = 300_000) {
+  constructor(spawn: () => ChildProcessWithoutNullStreams, linkTimeout = 30_000, loginTimeout = 300_000, stop = terminateProcess) {
     this.spawn = spawn;
     this.linkTimeout = linkTimeout;
     this.loginTimeout = loginTimeout;
+    this.stop = stop;
   }
 
   begin(add: () => Promise<void>) {
@@ -132,7 +135,7 @@ export class AccountLogins {
 
   run() {
     if (!this.active) throw new Error("Open the Add account dialog to sign in.");
-    return this.active.run(this.spawn, this.linkTimeout, this.loginTimeout);
+    return this.active.run(this.spawn, this.linkTimeout, this.loginTimeout, this.stop);
   }
 
   status(id: string): LoginStatus {

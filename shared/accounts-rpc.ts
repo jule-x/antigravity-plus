@@ -18,13 +18,18 @@ const account = z.object({
   id: z.string(), email: z.string(), nickname: z.string().nullish(), addedAt: z.string(),
   snapshot: z.object({ readAt: z.string(), report }).nullish(),
 });
+const notice = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("active"), email: z.string() }),
+  z.object({ kind: z.literal("signed-out") }),
+]);
 const state = z.object({
   accounts: z.array(account), activeAccountId: z.string().nullable(),
-  notice: z.string().nullable(), quotaError: z.boolean(), busy: z.boolean(),
+  notice: notice.nullable(), quotaError: z.boolean(), busy: z.boolean(),
 });
 export type AccountView = z.output<typeof account>;
 export type AccountsView = z.output<typeof state>;
 export type WindowView = z.output<typeof window>;
+export type AccountNotice = z.output<typeof notice>;
 
 const empty = z.object({});
 const target = z.object({ id: z.string().min(1) });

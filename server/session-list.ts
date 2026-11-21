@@ -48,30 +48,42 @@ type MessageId = string | number;
 const PAGE_ID_PREFIX = "antigravity-plus-list-page-";
 /** Stop following cursors after this many pages; agy 1.5.10 sends everything in one. */
 const MAX_PAGES = 50;
+const WINDOWS_PATHS = process.platform === "win32";
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** agy reports `file:` URIs as percent-encoded paths; turn either form into a plain path. */
-export function decodeCwd(value: string): string {
+export function decodeCwd(value: string, windows = WINDOWS_PATHS): string {
   if (value.startsWith("file:")) {
+    if (windows && value === "file:///") return "/";
     try {
-      return fileURLToPath(value);
+      return fileURLToPath(value, { windows });
     } catch {
       return value;
     }
   }
-  if (!value.includes("%")) return value;
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
+  let decoded = value;
+  if (value.includes("%")) {
+    try {
+      decoded = decodeURIComponent(value);
+    } catch {
+      return value;
+    }
   }
+  if (windows) {
+    const absolute = decoded.replace(/^[\\/](?=[a-z]:[\\/])/i, "");
+    if (/^(?:[a-z]:[\\/]|[\\/]{2})/i.test(absolute)) return path.win32.normalize(absolute);
+  }
+  return decoded;
 }
 
-/** The daemon's comparison: posix-normalized, no trailing separator except the root. */
-function normalize(value: string): string {
+function normalize(value: string, windows: boolean): string {
+  if (windows) {
+    const normalized = path.win32.normalize(value).toLowerCase();
+    return normalized === path.win32.parse(normalized).root ? normalized : normalized.replace(/\\+$/, "");
+  }
   const normalized = path.posix.normalize(value);
   return normalized.length > 1 ? normalized.replace(/\/+$/, "") : normalized;
 }
@@ -91,10 +103,10 @@ function realpaths(value: string): string[] {
 }
 
 /** Same equivalence as the daemon's createRealpathAwarePathMatcher, without subdirectories. */
-function variantsOf(value: string, resolve: RealpathResolver, cache: Map<string, Set<string>>): Set<string> {
+function variantsOf(value: string, resolve: RealpathResolver, cache: Map<string, Set<string>>, windows: boolean): Set<string> {
   const cached = cache.get(value);
   if (cached) return cached;
-  const variants = new Set([value, ...resolve(value)].map(normalize));
+  const variants = new Set([value, ...resolve(value)].map(candidate => normalize(candidate, windows)));
   cache.set(value, variants);
   return variants;
 }
@@ -131,7 +143,7 @@ interface SqliteDatabase {
  * the first `workspace_uris` entry, hiding sessions with multiple roots — including older
  * Antigravity+ conversations where agy ran in `/` and recorded `["file:///", "<cwd>"]`.
  */
-export function cliStoredCwds(databasePath = CLI_SUMMARIES_DB): (sessionId: string) => readonly string[] {
+export function cliStoredCwds(databasePath = CLI_SUMMARIES_DB, windows = WINDOWS_PATHS): (sessionId: string) => readonly string[] {
   let loaded: Map<string, string[]> | null = null;
   const load = (): Map<string, string[]> => {
     if (loaded) return loaded;
@@ -156,7 +168,7 @@ export function cliStoredCwds(databasePath = CLI_SUMMARIES_DB): (sessionId: stri
           continue;
         }
         if (!Array.isArray(uris)) continue;
-        const dirs = uris.filter((uri): uri is string => typeof uri === "string" && uri.length > 0).map(decodeCwd);
+        const dirs = uris.filter((uri): uri is string => typeof uri === "string" && uri.length > 0).map(uri => decodeCwd(uri, windows));
         if (dirs.length > 0) loaded.set(row.conversation_id, dirs);
       }
     } catch {
@@ -174,6 +186,7 @@ export function cliStoredCwds(databasePath = CLI_SUMMARIES_DB): (sessionId: stri
 }
 
 export interface ArrangeOptions {
+  windowsPaths?: boolean;
   resolve?: RealpathResolver;
   /** The listing process's directory: agy's stand-in for "no directory recorded". */
   placeholderCwd?: string | null;
@@ -192,21 +205,27 @@ export function arrangeSessions(
   requestedCwd: string | null,
   options: ArrangeOptions = {},
 ): JsonObject[] {
+  const windows = options.windowsPaths ?? WINDOWS_PATHS;
   const resolve = options.resolve ?? realpaths;
   const placeholderCwd = options.placeholderCwd ?? null;
   const loadable = options.loadable ?? cliLoadable();
-  const storedCwds = options.storedCwds ?? cliStoredCwds();
+  const storedCwds = options.storedCwds ?? cliStoredCwds(CLI_SUMMARIES_DB, windows);
   const cache = new Map<string, Set<string>>();
-  const target = requestedCwd ? variantsOf(requestedCwd, resolve, cache) : null;
-  const placeholder = placeholderCwd ? variantsOf(placeholderCwd, resolve, cache) : null;
+  const variants = (value: string) => variantsOf(value, resolve, cache, windows);
+  const target = requestedCwd ? variants(requestedCwd) : null;
+  const placeholder = placeholderCwd ? variants(placeholderCwd) : null;
   const isPlaceholder = (value: string) =>
-    placeholder !== null && [...variantsOf(value, resolve, cache)].some((variant) => placeholder.has(variant));
+    placeholder !== null && [...variants(value)].some((variant) => placeholder.has(variant));
+  const isRoot = (value: string) => {
+    const normalized = normalize(value, windows);
+    return normalized === (windows ? path.win32 : path.posix).parse(normalized).root;
+  };
   const arranged: JsonObject[] = [];
   for (const session of sessions) {
     if (!isObject(session)) continue;
     const sessionId = typeof session.sessionId === "string" ? session.sessionId : null;
     if (sessionId && !loadable(sessionId)) continue;
-    let cwd = typeof session.cwd === "string" ? decodeCwd(session.cwd) : undefined;
+    let cwd = typeof session.cwd === "string" ? decodeCwd(session.cwd, windows) : undefined;
     if (cwd && isPlaceholder(cwd)) {
       // No directory recorded: never part of a directory's list; listed under home otherwise.
       if (target) continue;
@@ -214,7 +233,7 @@ export function arrangeSessions(
     }
     if (target && requestedCwd) {
       const matchesTarget = (value: string) =>
-        [...variantsOf(value, resolve, cache)].some((variant) => target.has(variant));
+        [...variants(value)].some((variant) => target.has(variant));
       const matched =
         (cwd !== undefined && matchesTarget(cwd)) ||
         (sessionId !== null &&
@@ -222,8 +241,8 @@ export function arrangeSessions(
       if (!matched) continue;
       arranged.push({ ...session, cwd: requestedCwd });
     } else {
-      if (cwd && normalize(cwd) === "/" && sessionId !== null) {
-        const better = storedCwds(sessionId).find((stored) => normalize(stored) !== "/" && !isPlaceholder(stored));
+      if (cwd && isRoot(cwd) && sessionId !== null) {
+        const better = storedCwds(sessionId).find((stored) => !isRoot(stored) && !isPlaceholder(stored));
         if (better) cwd = better;
       }
       arranged.push(cwd === undefined ? { ...session } : { ...session, cwd });

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { hashAccountKey, type UsageReport } from "@getpaseo/plugin/server/usage";
+import type { AccountNotice } from "../shared/accounts-rpc.ts";
 
 export interface KeychainStore {
   read(service: string, account: string): Promise<string | null>;
@@ -21,7 +22,7 @@ export function slotEmail(raw: string): string {
     if ((method === undefined || method === "consumer") && typeof email === "string" &&
         email.trim() && typeof token?.access_token === "string" && token.access_token) return email.trim().toLowerCase();
   } catch { /* Never include credential bytes in errors. */ }
-  throw new Error("The Keychain entry does not contain a supported Antigravity consumer login");
+  throw new Error("The credential entry does not contain a supported Antigravity consumer login");
 }
 
 export function accountId(email: string): string {
@@ -94,7 +95,7 @@ export class AccountManager {
   private locked = false;
   private opening = false;
   private polling?: Promise<void>;
-  private notice: string | null = null;
+  private notice: AccountNotice | null = null;
   epoch = 0;
 
   constructor(options: AccountOptions) {
@@ -136,7 +137,7 @@ export class AccountManager {
     const raw = await this.options.keychain.read(VAULT_SERVICE, id);
     if (!raw || accountId(slotEmail(raw)) !== id) throw new Error("Vault entry missing or mismatched");
     await this.options.keychain.write(SLOT_SERVICE, SLOT_ACCOUNT, raw);
-    if (await this.slot() !== raw) throw new Error("Keychain readback did not match the selected account");
+    if (await this.slot() !== raw) throw new Error("Credential readback did not match the selected account");
   }
 
   private async reload() {
@@ -195,9 +196,9 @@ export class AccountManager {
       this.save({ ...this.state, accounts, activeAccountId: id, reloadPending });
       this.epoch++;
       this.options.reset();
-      this.notice = email ? `Active Keychain account: ${email}` : "Antigravity is signed out";
+      this.notice = email ? { kind: "active", email } : { kind: "signed-out" };
     }
-    if (!id) this.notice = "Antigravity is signed out";
+    if (!id) this.notice = { kind: "signed-out" };
     if (this.state.reloadPending && !(await this.options.busyAgents()).length) {
       await this.options.beforeSlotChange?.();
       await this.reload();

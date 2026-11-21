@@ -1,4 +1,4 @@
-import { execCommand } from "@getpaseo/plugin/server";
+import type { ProviderLaunch } from "@getpaseo/plugin/server/provider";
 import {
   unavailable,
   type UsageAccount,
@@ -8,6 +8,7 @@ import {
 } from "@getpaseo/plugin/server/usage";
 import { z } from "zod";
 import { accountId, SLOT_SERVICE, SLOT_ACCOUNT, type AccountManager, type KeychainStore } from "./accounts.ts";
+import { execAgy } from "./agy-launch.ts";
 import {
   availableModelsSchema,
   googlePoolWindows,
@@ -38,7 +39,7 @@ type Credential = z.infer<typeof credentialSchema>;
 
 async function readCredential(store: KeychainStore, id: string): Promise<Credential> {
   const raw = await store.read(SLOT_SERVICE, SLOT_ACCOUNT);
-  if (!raw) throw new Error("No agy login in the Keychain");
+  if (!raw) throw new Error("No agy login in the system credential store");
   const prefix = "go-keyring-base64:";
   const json = raw.startsWith(prefix)
     ? Buffer.from(raw.slice(prefix.length), "base64").toString("utf8")
@@ -63,46 +64,28 @@ function isExpired(credential: Credential): boolean {
   return expiry !== null && expiry - EXPIRY_MARGIN_MS <= Date.now();
 }
 
-function agyCandidates(): string[] {
-  const home = process.env.HOME ?? "";
-  return ["agy", "/opt/homebrew/bin/agy", "/usr/local/bin/agy", `${home}/.local/bin/agy`];
-}
-
-let resolvedUserAgent: Promise<string> | null = null;
-
-function agyUserAgent(): Promise<string> {
-  resolvedUserAgent ??= readAgyVersion().then((version) => `antigravity/cli/${version}`);
-  return resolvedUserAgent;
-}
-
-async function readAgyVersion(): Promise<string> {
-  for (const command of agyCandidates()) {
-    try {
-      const { stdout } = await execCommand(command, ["--version"], {
-        env: process.env,
-        timeout: 5_000,
-      });
-      const match = /(\d+\.\d+\.\d+)/.exec(stdout);
-      if (match) return match[1];
-      return FALLBACK_CLI_VERSION;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-      return FALLBACK_CLI_VERSION;
-    }
+async function readAgyVersion(launch: ProviderLaunch | undefined): Promise<string> {
+  try {
+    const { stdout } = await execAgy(["--version"], 5_000, launch);
+    return /(\d+\.\d+\.\d+)/.exec(stdout)?.[1] ?? FALLBACK_CLI_VERSION;
+  } catch {
+    return FALLBACK_CLI_VERSION;
   }
-  return FALLBACK_CLI_VERSION;
 }
 
-async function runAgyRefresh(): Promise<void> {
-  for (const command of agyCandidates()) {
-    try {
-      await execCommand(command, ["models"], { env: process.env, timeout: REFRESH_TIMEOUT_MS });
-      return;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-      return;
+export function createAccountQuota(store: KeychainStore, getLaunch: () => ProviderLaunch | undefined): AccountQuota {
+  let lastLaunch: ProviderLaunch | undefined;
+  let version: Promise<string> | undefined;
+  return new AccountQuota(store, async token => {
+    const launch = getLaunch();
+    if (!version || lastLaunch !== launch) {
+      lastLaunch = launch;
+      version = readAgyVersion(launch);
     }
-  }
+    return requestReport(token, `antigravity/cli/${await version}`);
+  }, async () => {
+    await execAgy(["models"], REFRESH_TIMEOUT_MS, getLaunch()).catch(() => undefined);
+  });
 }
 
 class EligibilityError extends Error {}
@@ -151,7 +134,7 @@ export class AccountQuota {
   private request: (token: string) => Promise<UsageReport>;
   private runRefresh: () => Promise<void>;
 
-  constructor(store: KeychainStore, request = requestReport, runRefresh = runAgyRefresh) {
+  constructor(store: KeychainStore, request: (token: string) => Promise<UsageReport>, runRefresh: () => Promise<void>) {
     this.store = store;
     this.request = request;
     this.runRefresh = runRefresh;
@@ -242,8 +225,7 @@ export class AccountQuota {
   }
 }
 
-async function requestReport(token: string): Promise<UsageReport> {
-  const userAgent = await agyUserAgent();
+async function requestReport(token: string, userAgent: string): Promise<UsageReport> {
   const [summaryRaw, tierRaw] = await Promise.all([
     post("retrieveUserQuotaSummary", token, {}, userAgent),
     post(

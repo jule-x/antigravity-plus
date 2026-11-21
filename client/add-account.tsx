@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { useRpc } from "@getpaseo/plugin/client";
+import { useRpc, useTranslation } from "@getpaseo/plugin/client";
 import { ExternalLink, Modal, SettingsAction, SettingsInput, SettingsRow, SettingsSwitch } from "@getpaseo/plugin/client/ui";
 import { ErrorMessage } from "./error-message.tsx";
+import { messages } from "./messages.ts";
 import { accountsRpc, type LoginStatus } from "../shared/accounts-rpc.ts";
 
 export function AddAccount({ close, refresh }: { close(): void; refresh(): Promise<void> }) {
+  const { t } = useTranslation(messages);
   const begin = useRpc(accountsRpc.add);
   const read = useRpc(accountsRpc.loginStatus);
   const send = useRpc(accountsRpc.loginSubmit);
@@ -13,7 +15,7 @@ export function AddAccount({ close, refresh }: { close(): void; refresh(): Promi
   const [id, setId] = useState("");
   const [status, setStatus] = useState<LoginStatus | null>(null);
   const [value, setValue] = useState("");
-  const [problem, setProblem] = useState("");
+  const [problem, setProblem] = useState<{ detail: string } | { key: "startError" | "submitError" | "cancelError" } | null>(null);
   const [disconnected, setDisconnected] = useState(false);
   const [sending, setSending] = useState(false);
   const live = useRef(true);
@@ -44,7 +46,7 @@ export function AddAccount({ close, refresh }: { close(): void; refresh(): Promi
           setValue("");
           void refresh();
           if (next.phase === "done") close();
-          else { setStatus(null); setProblem(next.message); }
+          else { setStatus(null); setProblem({ detail: next.message }); }
           return;
         }
       } catch {
@@ -58,7 +60,7 @@ export function AddAccount({ close, refresh }: { close(): void; refresh(): Promi
   }, [id, read]);
 
   async function start() {
-    setProblem("");
+    setProblem(null);
     setStatus({ phase: "starting" });
     try {
       const result = await begin({makeActive});
@@ -67,7 +69,7 @@ export function AddAccount({ close, refresh }: { close(): void; refresh(): Promi
       setId(result.id);
     } catch (error) {
       if (live.current) {
-        setProblem(error instanceof Error ? error.message : "Could not start sign-in.");
+        setProblem(error instanceof Error ? { detail: error.message } : { key: "startError" });
         setStatus(null);
       }
     }
@@ -75,13 +77,13 @@ export function AddAccount({ close, refresh }: { close(): void; refresh(): Promi
 
   async function submit() {
     setSending(true);
-    setProblem("");
+    setProblem(null);
     try {
       await send({id, value});
       setValue("");
       setStatus({ phase: "submitted" });
     } catch {
-      setProblem("Could not submit the code. Check that you pasted a single code or callback URL.");
+      setProblem({ key: "submitError" });
     } finally { setSending(false); }
   }
 
@@ -91,25 +93,25 @@ export function AddAccount({ close, refresh }: { close(): void; refresh(): Promi
       await cancel({id});
       setValue("");
       setStatus({ phase: "finishing" });
-    } catch { setProblem("Could not cancel sign-in. Please retry."); }
+    } catch { setProblem({ key: "cancelError" }); }
   }
 
   const finishing = status?.phase === "finishing";
-  return <Modal open title="Add account" onOpenChange={open => { if (!open && !finishing) void dismiss(); }}>
+  return <Modal open title={t("add")} onOpenChange={open => { if (!open && !finishing) void dismiss(); }}>
     <Modal.Content>
-      <SettingsSwitch label="Use the new login for all sessions" value={makeActive} onValueChange={setMakeActive} disabled={!!status} />
-      {!status && <SettingsAction label="Sign in through agy" actionLabel="Start sign-in" onPress={() => void start()} />}
-      {status?.phase === "starting" && <SettingsRow label="Waiting for the Google login link…" />}
+      <SettingsSwitch label={t("useNewLogin")} value={makeActive} onValueChange={setMakeActive} disabled={!!status} />
+      {!status && <SettingsAction label={t("signIn")} actionLabel={t("start")} onPress={() => void start()} />}
+      {status?.phase === "starting" && <SettingsRow label={t("waitingLink")} />}
       {status?.phase === "input" && <>
-        <ExternalLink href={status.url}>Open login link</ExternalLink>
-        <SettingsInput label="Authorization code or full callback URL" secureTextEntry onChangeText={setValue} />
-        <SettingsAction label="Send to agy" actionLabel="Submit" disabled={!value.trim() || sending} onPress={() => void submit()} />
+        <ExternalLink href={status.url}>{t("openLogin")}</ExternalLink>
+        <SettingsInput label={t("authCode")} secureTextEntry onChangeText={setValue} />
+        <SettingsAction label={t("sendCode")} actionLabel={t("submit")} disabled={!value.trim() || sending} onPress={() => void submit()} />
       </>}
-      {status?.phase === "submitted" && <SettingsRow label="Waiting for agy to finish sign-in…" />}
-      {finishing && <SettingsRow label="Finishing account changes…" />}
-      {disconnected && <SettingsRow label="Could not read login progress. Reconnecting…" />}
-      {problem && <ErrorMessage message={problem} />}
-      <SettingsAction label="Close sign-in" actionLabel="Cancel" disabled={finishing} onPress={() => void dismiss()} />
+      {status?.phase === "submitted" && <SettingsRow label={t("waitingLogin")} />}
+      {finishing && <SettingsRow label={t("finishing")} />}
+      {disconnected && <SettingsRow label={t("reconnecting")} />}
+      {problem && <ErrorMessage message={"detail" in problem ? problem.detail : t(problem.key)} />}
+      <SettingsAction label={t("closeLogin")} actionLabel={t("cancel")} disabled={finishing} onPress={() => void dismiss()} />
     </Modal.Content>
   </Modal>;
 }

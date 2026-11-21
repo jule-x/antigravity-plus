@@ -141,14 +141,14 @@ test("reconciliation handles same, known, new and empty slots", async () => {
   await assert.rejects(manager.switch(aid), /outside Paseo/);
   assert.equal(manager.snapshot().activeAccountId, bid);
   assert.equal(await keychain.read(VAULT_SERVICE, bid), credential(b, 2));
-  assert(manager.snapshot().notice?.includes(b));
+  assert.deepEqual(manager.snapshot().notice, { kind: "active", email: b });
   await keychain.login("c@example.com");
   await manager.reconcile();
   assert.equal(manager.snapshot().accounts.length, 3);
   await keychain.remove(SLOT_SERVICE, SLOT_ACCOUNT);
   await manager.reconcile();
   assert.equal(manager.snapshot().activeAccountId, null);
-  assert.match(manager.snapshot().notice ?? "", /signed out/);
+  assert.deepEqual(manager.snapshot().notice, { kind: "signed-out" });
 });
 
 test("transactions exclude other mutations and invalidate old quota reads", async () => {

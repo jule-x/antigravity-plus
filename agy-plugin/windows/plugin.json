@@ -1,0 +1,5 @@
+{
+  "name": "antigravity-plus-guard",
+  "version": "0.1.0",
+  "description": "Companion of the Antigravity+ Paseo plugin for Windows. Routes subagent creation through Paseo inside Antigravity+ sessions."
+}

@@ -21,3 +21,15 @@ declare module "react/jsx-runtime" {
     interface ElementChildrenAttribute { children: unknown }
   }
 }
+declare module "react-native" {
+  type NativeProps = { children?: import("react").ReactNode; style?: Record<string, string | number> };
+  export const Text: import("react").ComponentType<NativeProps>;
+  export const View: import("react").ComponentType<NativeProps & {
+    accessibilityRole?: "progressbar";
+    accessibilityLabel?: string;
+    "aria-valuemin"?: number;
+    "aria-valuemax"?: number;
+    "aria-valuenow"?: number;
+    "aria-valuetext"?: string;
+  }>;
+}

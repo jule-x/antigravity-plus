@@ -14,20 +14,20 @@ Antigravity+ adds a second Antigravity provider to Paseo that runs `agy acp`, th
 
 ## Setup
 
-Blocking `invoke_subagent` needs the companion agy plugin in `agy-plugin/`, linked into agy's global plugins folder (`~/.gemini/config/plugins/`). See the repository README for the symlink command. Its hook blocks `invoke_subagent` only in agy processes started by Antigravity+, which carry `ANTIGRAVITY_PLUS=1`; anywhere else it answers "allow", and agy does not ask permission for `invoke_subagent` on its own, so other agy sessions behave as before. Without the companion plugin, agy is still told to prefer Paseo agents but nothing enforces it.
+The companion agy plugin enforces the `invoke_subagent` restriction. It uses a PowerShell hook on Windows and a `/bin/sh` hook on macOS. The hook denies `invoke_subagent` in agy processes started by Antigravity+, which carry `ANTIGRAVITY_PLUS=1`. It allows the call in other agy sessions. See the repository README for platform setup.
 
 ## Quota
 
-The quota source reads agy's Google login from the macOS Keychain (service `gemini`) and asks Google's Antigravity backend (`daily-cloudcode-pa.googleapis.com`) for quota using the installed `agy` CLI version header (`antigravity/cli/<version>`). It reports the plan name along with the quota groups returned by the backend: weekly and 5-hour limits for the shared Gemini pool (Gemini 4 Neon, Gemini 4 Hydrogen, Orchestrator (Neon) and Gemini 3.8 Flash), weekly and 5-hour limits for Claude and GPT models, and the separate weekly limit for Gemini 4 Argon (Pro plans). If the summary omits Google models, it falls back to `fetchAvailableModels`. The access token is used only for these requests. When it expires, the source runs `agy models` so agy can refresh the active login.
+The quota source reads agy's Google login from macOS Keychain (service `gemini`) or Windows Credential Manager (`gemini:antigravity`) and asks Google's Antigravity backend (`daily-cloudcode-pa.googleapis.com`) for quota using the installed `agy` CLI version header (`antigravity/cli/<version>`). It reports the plan name along with the quota groups returned by the backend: weekly and 5-hour limits for the shared Gemini pool (Gemini 4 Neon, Gemini 4 Hydrogen, Orchestrator (Neon) and Gemini 3.8 Flash), weekly and 5-hour limits for Claude and GPT models, and the separate weekly limit for Gemini 4 Argon (Pro plans). If the summary omits Google models, it falls back to `fetchAvailableModels`. The access token is used only for these requests. When it expires, the source runs `agy models` so agy can refresh the active login.
 
 ## Manual account switching
 
-Open **Antigravity+ accounts** in the sidebar to add your Google consumer accounts. Each complete login is stored in the macOS Keychain. One account serves all sessions, which share agy’s local conversation history. Once all Antigravity+ turns are idle, you can switch accounts and continue a conversation. The accounts page shows the latest live reading for the active account and a dated snapshot for each standby account. Google’s consumer plans do not support automatic account switching. When quota runs out, select the account alert in the composer and confirm the switch.
+Open **Antigravity+ accounts** in the sidebar to add Google consumer accounts. The plugin stores complete logins in macOS Keychain or Windows Credential Manager. Switching changes the shared agy login, so close standalone agy sessions and sessions using Paseo's built-in Antigravity provider first. Once all Antigravity+ turns are idle, you can switch accounts and continue a conversation. The accounts page shows the active account's latest reading and a dated snapshot for each standby account. When quota runs out, select the account alert in the composer and confirm the switch.
 
 ## Requirements
 
 - Paseo 0.16.0 or later and agy 1.5.8 or later, signed in.
-- macOS only. The quota source reads the macOS Keychain and the companion agy plugin runs its hook with `/bin/sh`. Windows is not supported, and Linux is untested.
+- macOS and Windows. The Windows companion requires Windows PowerShell. Linux is untested.
 
 ## Limits
 

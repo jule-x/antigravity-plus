@@ -1,0 +1,16 @@
+{
+  "antigravity-plus-subagents": {
+    "PreToolUse": [
+      {
+        "matcher": "invoke_subagent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoLogo -NoProfile -NonInteractive -Command \"[void][Console]::In.ReadToEnd(); if ([Environment]::GetEnvironmentVariable('ANTIGRAVITY_PLUS') -eq '1') { [pscustomobject]@{decision='deny';reason='Start the subagent with the Paseo create_agent tool so the user can see and control it.'} | ConvertTo-Json -Compress } else { [pscustomobject]@{decision='allow'} | ConvertTo-Json -Compress }\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

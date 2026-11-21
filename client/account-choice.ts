@@ -1,8 +1,10 @@
 import type { AccountView, AccountsView, WindowView } from "../shared/accounts-rpc.ts";
 
+export const accountLabel = (account: AccountView) => account.nickname || account.email;
+
 export function remaining(window: WindowView) {
   const value = window.remainingPct ?? (window.usedPct == null ? null : 100 - window.usedPct);
-  return value == null ? null : Math.round(value * 100) / 100;
+  return value !== null && Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : null;
 }
 
 export function windows(account: AccountView) {
@@ -17,10 +19,7 @@ function minimumRemaining(account: AccountView) {
 export function quotaSummary(account: AccountView, active: boolean, quotaError: boolean) {
   const minimum = minimumRemaining(account);
   const depleted = minimum === 0 || (active && quotaError);
-  let label = "Remaining quota unknown";
-  if (depleted) label = active ? "Quota limit" : "Quota limit at last reading";
-  else if (minimum !== null) label = active ? `${minimum}% remaining` : `${minimum}% remaining at last reading`;
-  return { label, defaultExpanded: active && depleted };
+  return { minimum, depleted };
 }
 
 /** The least remaining window limits how much of a standby account's measured quota is usable. */

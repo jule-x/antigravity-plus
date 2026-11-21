@@ -42,7 +42,7 @@ async function fixture(promptTimeout = 2000, loginTimeout = 3000) {
   const logins = new AccountLogins(() => {
     events.emit("spawn");
     return child as unknown as ChildProcessWithoutNullStreams;
-  }, promptTimeout, loginTimeout);
+  }, promptTimeout, loginTimeout, async childProcess => { childProcess.kill("SIGKILL"); });
   const entries = new Map([[slot, credential("a@example.com")]]);
   let metadata = '{"accounts":[],"activeAccountId":null}';
   const manager = new AccountManager({

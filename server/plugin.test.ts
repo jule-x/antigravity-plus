@@ -503,7 +503,7 @@ test("a failed open drops its session state", async () => {
 const kb = "/Users/dev/kb";
 const noRealpath = () => [];
 /** No real filesystem: every session loadable, no realpaths, no stored cwds. */
-const plain = { resolve: noRealpath, loadable: () => true, storedCwds: () => [] };
+const plain = { resolve: noRealpath, loadable: () => true, storedCwds: () => [], windowsPaths: false };
 const listed = [
   { sessionId: "old", cwd: kb, updatedAt: "2026-11-01T00:00:00Z" },
   { sessionId: "sub", cwd: `${kb}/notes`, updatedAt: "2026-11-17T12:00:00Z" },
@@ -521,10 +521,44 @@ test("session list keeps the requested directory only, newest first, undated las
 
 test("percent-encoded and file: cwds are decoded so non-ASCII directories match", () => {
   assert.equal(decodeCwd("/Users/dev/%E5%AD%A6%E4%B9%A0/%E7%AC%94%E8%AE%B0"), "/Users/dev/学习/笔记");
-  assert.equal(decodeCwd("file:///Users/dev/a%20b"), "/Users/dev/a b");
+  assert.equal(decodeCwd("file:///Users/dev/a%20b", false), "/Users/dev/a b");
   assert.equal(decodeCwd("/Users/dev/100%"), "/Users/dev/100%");
   const sessions = arrangeSessions(listed, "/Users/dev/学习", plain);
   assert.deepEqual(sessions.map((session) => session.sessionId), ["encoded"]);
+});
+
+test("Windows session paths normalize drive URIs, slashes and case", () => {
+  const requested = "C:\\DEV\\学习 资料";
+  const sessions = [
+    { sessionId: "drive", cwd: "file:///c:/dev/%E5%AD%A6%E4%B9%A0%20%E8%B5%84%E6%96%99" },
+    { sessionId: "escaped-drive", cwd: "file:///C%3A/dev/%E5%AD%A6%E4%B9%A0%20%E8%B5%84%E6%96%99" },
+    { sessionId: "drive-path", cwd: "c:/dev/学习 资料/" },
+    { sessionId: "drive-uri-path", cwd: "/c%3A/dev/学习%20资料" },
+    { sessionId: "child", cwd: "C:\\Dev\\学习 资料\\child" },
+    { sessionId: "other-drive", cwd: "D:\\Dev\\学习 资料" },
+  ];
+  const matched = arrangeSessions(sessions, requested, { ...plain, windowsPaths: true });
+  assert.deepEqual(matched.map(session => session.sessionId), ["drive", "escaped-drive", "drive-path", "drive-uri-path"]);
+  assert.ok(matched.every(session => session.cwd === requested));
+  const unscoped = arrangeSessions(sessions, null, { ...plain, windowsPaths: true });
+  assert.equal(unscoped.find(session => session.sessionId === "drive-uri-path")?.cwd, "c:\\dev\\学习 资料");
+});
+
+test("Windows session paths match UNC shares and stored secondary roots", () => {
+  const requested = "\\\\Server\\Share\\Project";
+  const sessions = [
+    { sessionId: "network", cwd: "file://server/share/project/" },
+    { sessionId: "multi-root", cwd: "C:\\" },
+    { sessionId: "placeholder", cwd: "C:/CACHE/" },
+  ];
+  const options = {
+    ...plain, windowsPaths: true, placeholderCwd: "c:\\cache",
+    storedCwds: () => ["C:\\", "\\\\SERVER\\SHARE\\project"],
+  };
+  const matched = arrangeSessions(sessions, requested, options);
+  assert.deepEqual(matched.map(session => session.sessionId), ["network", "multi-root"]);
+  const all = arrangeSessions(sessions, null, options);
+  assert.equal(all.find(session => session.sessionId === "multi-root")?.cwd, "\\\\SERVER\\SHARE\\project");
 });
 
 test("realpath variants match like the daemon's matcher", () => {
@@ -642,7 +676,7 @@ test("multi-root and legacy '/' conversations match their stored workspace_uris"
     insert.run("broken-json", "not,json");
     db.close();
 
-    const storedCwds = cliStoredCwds(dbPath);
+    const storedCwds = cliStoredCwds(dbPath, false);
     assert.deepEqual(storedCwds("legacy-root"), ["/", "/Users/dev/kb"]);
     assert.deepEqual(storedCwds("legacy-encoded"), ["/", "/Users/dev/学习"]);
     assert.deepEqual(storedCwds("single-root"), []);
@@ -655,14 +689,15 @@ test("multi-root and legacy '/' conversations match their stored workspace_uris"
       { sessionId: "multi-root", cwd: "/Users/dev/other", updatedAt: "2026-11-18T10:00:00Z" },
       { sessionId: "single-root", cwd: "/", updatedAt: "2026-11-18T08:00:00Z" },
     ];
-    const forKb = arrangeSessions(sessions, kb, { resolve: noRealpath, loadable: () => true, storedCwds });
+    const options = { ...plain, storedCwds };
+    const forKb = arrangeSessions(sessions, kb, options);
     assert.deepEqual(forKb.map((session) => session.sessionId), ["legacy-root", "multi-root"]);
     assert.ok(forKb.every((session) => session.cwd === kb));
 
-    const forEncoded = arrangeSessions(sessions, "/Users/dev/学习", { resolve: noRealpath, loadable: () => true, storedCwds });
+    const forEncoded = arrangeSessions(sessions, "/Users/dev/学习", options);
     assert.deepEqual(forEncoded.map((session) => session.sessionId), ["legacy-encoded"]);
 
-    const all = arrangeSessions(sessions, null, { resolve: noRealpath, loadable: () => true, storedCwds });
+    const all = arrangeSessions(sessions, null, options);
     assert.equal(all.find((session) => session.sessionId === "legacy-root")?.cwd, kb);
     assert.equal(all.find((session) => session.sessionId === "legacy-encoded")?.cwd, "/Users/dev/学习");
     assert.equal(all.find((session) => session.sessionId === "single-root")?.cwd, "/");

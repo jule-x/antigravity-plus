@@ -7,22 +7,29 @@ import { DEFAULT_PERMISSION_MODE, PREFERENCES_SETTINGS, type PermissionModeId } 
 import { AccountManager } from "./server/accounts.ts";
 import { AccountLogins } from "./server/interactive-login.ts";
 import { AccountRuntime } from "./server/account-runtime.ts";
+import { resolveAgyLaunch } from "./server/agy-launch.ts";
 import { captureAgyProcesses, resetObservedModels } from "./server/agy-stream.ts";
 import { MacKeychainStore } from "./server/keychain.ts";
 import { createAntigravityPlusProvider } from "./server/provider.ts";
-import { AccountQuota, createAntigravityUsageSource } from "./server/quota.ts";
+import { createAccountQuota, createAntigravityUsageSource } from "./server/quota.ts";
 import { drainSessionListProbe, refreshSessionList } from "./server/session-list.ts";
 import { AGY_ENV } from "./server/subagents.ts";
 import { registerTitleSync } from "./server/title-sync.ts";
+import { WindowsKeychainStore } from "./server/windows-keychain.ts";
 
 export default function contribute(server: PluginServerContext) {
   const runtime = new AccountRuntime();
-  const keychain = new MacKeychainStore();
-  const quota = new AccountQuota(keychain);
+  const windows = process.platform === "win32";
+  const supported = windows || process.platform === "darwin";
+  const keychain = windows ? new WindowsKeychainStore() : new MacKeychainStore();
   let launch: ProviderLaunch | undefined;
-  const logins = new AccountLogins(() => spawnProcess(launch?.command ?? "agy", ["acp", "--login"], {
-    env: { ...process.env, ...launch?.env }, stdio: "pipe",
-  }));
+  const quota = createAccountQuota(keychain, () => launch);
+  const logins = new AccountLogins(() => {
+    const resolved = resolveAgyLaunch(launch);
+    return spawnProcess(resolved?.command ?? (windows ? "agy.exe" : "agy"), [...(resolved?.args ?? ["acp"]), "--login"], {
+      env: resolved?.env ?? process.env, stdio: "pipe",
+    });
+  });
   let quotaError = false;
   const accounts = new AccountManager({
     keychain,
@@ -51,7 +58,6 @@ export default function contribute(server: PluginServerContext) {
     },
     verify: id => quota.verify(id),
   });
-  const supported = process.platform === "darwin";
   let initialized = false;
   let starting: Promise<void> | undefined;
   function ready() {
@@ -124,7 +130,7 @@ export default function contribute(server: PluginServerContext) {
   server.handle(accountsRpc.list, (_, ctx) => { runtime.attach(ctx.paseo); return view(); });
   server.handle(accountsRpc.status, (_, ctx) => { runtime.attach(ctx.paseo); return view(); });
   const mutate = async (work: () => Promise<void>) => {
-    if (!supported) throw new Error("Antigravity+ account management requires macOS");
+    if (!supported) throw new Error("Antigravity+ account management requires macOS or Windows");
     await ready();
     await work();
     return {ok: true as const};
