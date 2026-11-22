@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { runAcpProvider, type AcpTransformer } from "@getpaseo/plugin/server/acp";
+import { runAcpProvider, type AcpOptions, type AcpTransformer } from "@getpaseo/plugin/server/acp";
 import type {
   ProviderConnection,
   ProviderLaunch,
@@ -12,6 +12,7 @@ import { refreshSessionList } from "./session-list.ts";
 import { DEFAULT_MODE, withBypassMode, withModelThinking } from "./catalog.ts";
 import { launchContext, wrapConnection } from "./session-wrapper.ts";
 import { AGY_ENV, SUBAGENT_GUIDANCE } from "./subagents.ts";
+import { classifyCommand, keepsTurnOpen, mapToolCall } from "./tool-calls.ts";
 
 export const PROVIDER_ID = "antigravity-plus";
 const LABEL = "Antigravity+";
@@ -20,8 +21,21 @@ const MIN_AGY = [1, 5, 8] as const;
 /** Bump when the catalog this plugin builds changes shape, so Paseo drops its cached copy. */
 const CATALOG_REVISION = 3;
 
-/** Adds Bypass as an explicit choice, applies the configured default mode, and adds per-model thinking levels. */
-function createCatalogTransformer(defaultMode: () => string): AcpTransformer {
+/** Additive Paseo 0.17.1+ ACP options (safely ignored on 0.16.x hosts). */
+type ExtendedAcpOptions = AcpOptions & {
+  loadReplayQuietPeriodMs?: number;
+  deferTurnOnRunningTools?: {
+    keepsTurnOpen?: typeof keepsTurnOpen;
+  };
+};
+
+/** Additive Paseo 0.17.1+ ACP transformer hooks (safely ignored on 0.16.x hosts). */
+type ExtendedAcpTransformer = AcpTransformer & {
+  command?: typeof classifyCommand;
+};
+
+/** Adds Bypass as an explicit choice, applies the configured default mode, classifies commands/skills, and maps native tool cards. */
+function createCatalogTransformer(defaultMode: () => string): ExtendedAcpTransformer {
   return {
     discover(catalog) {
       return {
@@ -31,6 +45,8 @@ function createCatalogTransformer(defaultMode: () => string): AcpTransformer {
         models: withModelThinking(catalog.models, latestModelIds()),
       };
     },
+    command: classifyCommand,
+    toolCall: mapToolCall,
   };
 }
 
@@ -149,8 +165,13 @@ export function createAntigravityPlusProvider(
           return agy.stream;
         },
         transformers: [catalogTransformer],
-        // agy sends commands and skills right after session/new|load; wait so the composer has them.
-        acpOptions: { waitForInitialCommands: true },
+        // agy sends commands and skills right after session/new|load, can stream trailing
+        // replay chunks after load, and can yield while non-daemon background tools still run.
+        acpOptions: {
+          waitForInitialCommands: true,
+          loadReplayQuietPeriodMs: 200,
+          deferTurnOnRunningTools: { keepsTurnOpen },
+        } as ExtendedAcpOptions,
       }).connect({ ...request, launch });
       const connection = wrapConnection(inner, request.capabilities, {
         modelIds: latestModelIds,

@@ -2,18 +2,19 @@
 
 English | [简体中文](./README.zh-CN.md)
 
-Antigravity+ adds a full-featured Antigravity provider (`antigravity-plus`) to [Paseo](https://paseo.sh) powered by `agy acp` (the Agent Client Protocol server built into the Antigravity CLI), plus an Antigravity quota source in Paseo's Usage panel.
+Antigravity+ adds an enhanced Antigravity provider (`antigravity-plus`) to [Paseo](https://paseo.sh) powered by `agy acp` (the Agent Client Protocol server built into the Antigravity CLI), adding multi-account switching, composer quota quick-view, cached multi-root session import, mid-turn steering, automatic title sync, and Paseo subagent routing.
 
 ## Features
 
-- **Persistent history across restarts**: Reopens conversations via ACP `session/load` and replays the timeline.
-- **Fast session import**: Lists local `agy` CLI conversations for the current workspace directory (newest first, with in-memory caching and background refresh), filtering out unimportable Antigravity desktop app records.
-- **Slash commands & skills**: Surfaces `/goal`, `/plan`, `/compact`, `/grill-me`, and your custom skills in the Paseo composer.
+- **Persistent history across restarts**: Reopens conversations via ACP `session/load` and replays the timeline, with trailing-replay quiet-period protection on Paseo 0.17.1+.
+- **Fast, multi-root session import**: Lists local `agy` CLI conversations for the current workspace directory (newest first, with in-memory caching and background refresh), decodes non-ASCII and Windows paths, matches multi-root and legacy `/` `workspace_uris`, and filters out unimportable Antigravity desktop app records.
+- **Slash commands & mid-prompt skills**: Classifies built-in commands (`/goal`, `/plan`, `/compact`, `/grill-me`) separately from custom skills so mid-prompt `/` skill suggestions work on Paseo 0.17.1+.
+- **Native tool cards & background commands (Paseo 0.17.1+)**: Maps shell commands/output, file reads/writes/diffs, web search, and Paseo MCP calls to Paseo's native tool cards, and keeps turns open while non-daemon background commands run.
 - **Permission modes**: Supports `agy`'s native **Default** (default for new agents, asking for permission), **Accept edits**, **Auto**, and **Plan** modes, plus an optional **Bypass** mode (running outside the terminal sandbox and auto-approving with `allow_once` without polluting global grants). You can switch modes per session or configure your own default mode in **Settings → Antigravity+**.
 - **Per-model thinking levels**: Derives each model's supported thinking levels from `agy`'s variant catalog (including `XHigh` for Gemini 4 Neon and Gemini 4 Hydrogen, and no thinking selector for level-less models like GPT-OSS and Orchestrator).
-- **Mid-turn steering**: Messages sent during an active turn join the running turn instead of interrupting it.
-- **Paseo MCP & subagent orchestration**: Forwards Paseo's MCP servers and agent system instructions to `agy`, and redirects subagent creation from `agy`'s hidden `invoke_subagent` to Paseo's visible, controllable `create_agent`.
-- **Context window & Usage panel quota**: Reports live context window usage in the composer and displays Gemini (Weekly & 5-hour shared pool for Neon/Hydrogen/Flash), Claude/GPT (Weekly & 5-hour), and Gemini 4 Argon (Weekly) quota windows on macOS and Windows.
+- **Mid-turn steering & automatic title sync**: Messages sent during an active turn join the running turn instead of interrupting it, and `agy`'s generated conversation titles automatically replace Paseo's provisional 60-character titles without overwriting user-edited names.
+- **Paseo MCP & subagent orchestration**: Forwards Paseo's MCP servers and agent system instructions to `agy`, and (with the companion hook installed) redirects subagent creation from `agy`'s hidden `invoke_subagent` to Paseo's visible, controllable `create_agent`.
+- **Context window, Usage panel & composer quota**: Reports live context window usage in the composer, displays Gemini (Weekly & 5-hour shared pool for Neon/Hydrogen/Flash), Claude/GPT (Weekly & 5-hour), and Gemini 4 Argon (Weekly) quota windows on macOS and Windows, and exposes a quick **Quota** popover directly in the composer.
 
 ## Manual account switching
 

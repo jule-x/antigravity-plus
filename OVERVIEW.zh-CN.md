@@ -1,14 +1,15 @@
-Antigravity+ 为 Paseo 增加了一个通过 `agy acp`（Antigravity CLI 内置的 Agent Client Protocol 服务）运行的 Antigravity 提供商，替代内置提供商使用的 stream-json 打印模式。提示词、附件、MCP 工具调用与工具输出会发送给会话工作目录下的 `agy acp`，并由 `agy` 发往 Google 的 Antigravity 服务。本插件同时在 Usage 面板中提供 Antigravity 额度数据源。
+Antigravity+ 为 Paseo 提供基于 `agy acp`（Antigravity CLI 内置的 Agent Client Protocol 服务）的增强型 Antigravity 提供商（`antigravity-plus`），在基础 ACP 能力之上补充了多账号管理与手动切号、输入框额度快捷弹窗、缓存加速的多目录会话导入、运行中插话（Steering）、agy 会话标题自动同步、按模型独立思考档位以及 Paseo 子代理编排。提示词、附件、MCP 工具调用与工具输出会发送给会话工作目录下的 `agy acp`，并由 `agy` 发往 Google 的 Antigravity 服务。
 
 ## 主要功能
 
-- 重启或重载后保留历史会话：Paseo 通过 `session/load` 重新打开 agy 会话，并将历史消息回放到时间线中。
-- 会话导入：按当前所选目录列出本地 agy CLI 会话（按更新时间倒序），包含由内置 Antigravity 提供商或在 agy 终端中创建的会话。为避免列出 `agy acp` 无法加载的 Antigravity 桌面端会话，插件会检查 `~/.gemini/antigravity-cli/conversations/` 下是否存在本地会话数据库，并在独立的空临时目录（`$TMPDIR/antigravity-plus/session-list`）中执行 `session/list`。
-- 斜杠命令与技能：`/goal`、`/plan`、`/compact` 及自定义技能可直接出现在输入框自动补全中。
+- 重启或重载后保留历史会话：Paseo 通过 `session/load` 重新打开 agy 会话并回放时间线，在 Paseo 0.17.1+ 上自动等待尾段历史回放完成（`loadReplayQuietPeriodMs`），避免长对话丢尾。
+- 增强会话导入：按当前所选目录列出本地 agy CLI 会话（按更新时间倒序，带内存缓存与后台刷新），支持中文与 Windows 路径解码、多目录及历史 `/` 会话的 `workspace_uris` 兜底，并过滤 `agy acp` 无法加载的 Antigravity 桌面端会话。
+- 斜杠命令与技能分类：将 `/goal`、`/plan`、`/compact` 等内置命令与自定义技能分开标注，在 Paseo 0.17.1+ 上支持正文中间输入 `/` 补全技能。
+- 原生工具卡片与后台命令守护（Paseo 0.17.1+）：将 Shell 命令与输出、文件读写与 diff、网页搜索以及 Paseo MCP 调用映射为原生卡片；非守护型后台命令执行期间保持轮次运行状态与停止按钮。
 - 权限模式：提供 agy 原生的 Default、Accept edits、Auto 和 Plan 模式，以及可选的 Bypass 模式。新建代理默认使用 Default，在执行编辑与命令前通过 Paseo 权限卡片请求确认；可在单个会话中随时切换到 Bypass，也可在 **Settings → Antigravity+** 中自定义新建会话的默认权限模式。Bypass 底层让 agy 运行在 Default 模式（不进终端沙箱），并在流层以 `allow_once` 自动批准每次权限请求；你在 agy 配置中的 deny 规则在所有模式下依然生效。
 - MCP 与系统指令透传：Paseo 的 MCP 服务与代理级系统指令会传给 agy，因此 Antigravity 代理可以直接使用 Paseo 的编排工具。
-- 子代理交由 Paseo 托管：agy 自带的 `invoke_subagent` 创建的子代理在 Paseo 中不可见也不可控，因此在 Antigravity+ 会话中会被拦截，并引导模型改用 Paseo 的 `create_agent`。依赖原生子代理的命令（如 `/teamwork`、`/boost`）在此不可用，需在 agy 终端中使用。
-- 上下文用量指示器：根据 agy 的用量更新实时显示在输入框旁。
+- 子代理交由 Paseo 托管：agy 自带的 `invoke_subagent` 创建的子代理在 Paseo 中不可见也不可控，配置伴随钩子后会在 Antigravity+ 会话中拦截该调用，并引导模型改用 Paseo 的 `create_agent`。依赖原生子代理的命令（如 `/teamwork`、`/boost`）在此不可用，需在 agy 终端中使用。
+- 上下文用量与标题同步：输入框实时显示上下文窗口占用，并在轮次结束后自动将 agy 生成的会话短标题同步到未手动命名的 Paseo 代理。
 - 运行中插话（Steering）：在当前轮次运行期间发送的消息会并入当前轮次继续执行，而不会打断重来。
 - 按模型独立配置思考档位：每个模型拥有各自的思考档位选项（例如 Gemini 4 Neon 与 Gemini 4 Hydrogen 支持 XHigh，无档位变体的模型不显示档位）。
 
@@ -32,5 +33,4 @@ Antigravity+ 为 Paseo 增加了一个通过 `agy acp`（Antigravity CLI 内置�
 ## 已知限制
 
 - Antigravity+ 是独立的提供商，使用内置 Antigravity 提供商创建的旧代理不会自动迁移，可通过会话导入功能迁入。
-- 后台命令：当 agy 将耗时命令转为后台运行时，当前轮次可能在命令结束前完成，此时 Paseo 会显示代理已空闲。
-- Shell、文件读取与搜索工具展示为带输入输出的通用工具行；文件编辑展示为 diff。
+- 在 Paseo 0.16.x（0.17.1 之前）中，耗时命令转为后台运行时轮次可能提前结束，且 Shell/读取/搜索工具以通用工具行显示；升级到 Paseo 0.17.1+ 即可自动获得后台命令保持运行状态与原生工具卡片。

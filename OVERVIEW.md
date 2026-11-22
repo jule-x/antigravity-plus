@@ -1,14 +1,15 @@
-Antigravity+ adds a second Antigravity provider to Paseo that runs `agy acp`, the Agent Client Protocol server built into the Antigravity CLI, instead of the stream-json print mode the built-in provider uses. Prompts, attachments, MCP tool calls and tool outputs go to `agy acp` in the session's working directory and through `agy` to Google's Antigravity service. The plugin also adds an Antigravity quota source to the Usage panel.
+Antigravity+ adds an enhanced Antigravity provider (`antigravity-plus`) to Paseo powered by `agy acp` (the Agent Client Protocol server built into the Antigravity CLI), extending Paseo's Antigravity workflow with multi-account management and manual switching, composer quota quick-view, cached multi-root session import, mid-turn steering, automatic title sync, per-model thinking levels, and Paseo subagent routing. Prompts, attachments, MCP tool calls and tool outputs go to `agy acp` in the session's working directory and through `agy` to Google's Antigravity service.
 
 ## What you get
 
-- Conversation history after a daemon restart or agent reload. Paseo reopens the agy conversation with `session/load`, and agy replays it into the timeline.
-- Import session lists your local agy CLI conversations for the selected directory, newest first, including ones started by the built-in Antigravity provider or in the agy terminal UI. To avoid listing Antigravity desktop app conversations that `agy acp` cannot load, the plugin checks `~/.gemini/antigravity-cli/conversations/` for a local conversation database and runs `session/list` in an empty temporary folder (`$TMPDIR/antigravity-plus/session-list`).
-- Slash commands and skills such as `/goal`, `/plan`, `/compact` and your own skills appear in the composer.
+- Conversation history after a daemon restart or agent reload. Paseo reopens the agy conversation with `session/load` and waits for trailing replay chunks (`loadReplayQuietPeriodMs` on Paseo 0.17.1+).
+- Enhanced Import session: lists your local agy CLI conversations for the selected directory, newest first, with in-memory caching and background refresh, percent-encoded and Windows path decoding, multi-root and legacy `/` `workspace_uris` fallback, and filtering of Antigravity desktop app conversations that `agy acp` cannot load.
+- Slash commands and skills: classifies built-in commands (`/goal`, `/plan`, `/compact`, etc.) and custom skills separately so mid-prompt `/` skill suggestions work on Paseo 0.17.1+.
+- Native tool cards & background-command handling (Paseo 0.17.1+): formats shell commands/output, file reads/writes/diffs, web search, and Paseo MCP calls in native timeline cards, and keeps turns open while non-daemon background commands finish.
 - Modes: agy's own Default, Accept edits, Auto and Plan, plus an optional Bypass mode. New agents start in Default, asking for permission through Paseo permission cards before edits and commands. You can switch to Bypass per session or change the default permission mode in **Settings → Antigravity+**. In Bypass, agy runs in its Default mode outside the terminal sandbox and the plugin approves requests with `allow_once`; deny rules in your agy settings still apply in every mode.
 - Paseo's MCP servers and the agent's Paseo instructions reach agy, so Antigravity agents can use Paseo's orchestration tools.
-- Subagents through Paseo. agy's own `invoke_subagent` starts subagents that Paseo cannot show or control, so it is blocked in Antigravity+ sessions and agy is told to use Paseo's `create_agent` instead. agy commands that rely on native subagents, such as `/teamwork` and `/boost`, do not work here; use the agy terminal UI for them.
-- The context window meter in the composer, from agy's usage updates.
+- Subagents through Paseo. agy's own `invoke_subagent` starts subagents that Paseo cannot show or control, so it is blocked in Antigravity+ sessions (when the companion hook is installed) and agy is told to use Paseo's `create_agent` instead. agy commands that rely on native subagents, such as `/teamwork` and `/boost`, do not work here; use the agy terminal UI for them.
+- The context window meter in the composer, from agy's usage updates, plus automatic syncing of agy's generated conversation title onto provisional Paseo agent titles.
 - Steering: a message sent during a running turn joins that turn instead of interrupting it.
 - Model and thinking level as separate choices, with each model's own levels, such as XHigh for Gemini 4 Neon and Gemini 4 Hydrogen.
 
@@ -32,5 +33,4 @@ Open **Antigravity+ accounts** in the sidebar to add Google consumer accounts. T
 ## Limits
 
 - Antigravity+ is a separate provider. Agents created with the built-in Antigravity provider stay on it; import their conversations to move them.
-- Background commands: when agy moves a long-running command to the background, its turn can end before the command finishes, so Paseo shows the agent idle while that command still runs.
-- Shell, read and search tools show as generic tool rows with their input and output; file edits show as diffs.
+- On Paseo 0.16.x (before 0.17.1), long-running commands moved to the background can end the turn early, and shell/read/search tools show as generic tool rows. Upgrade to Paseo 0.17.1+ for deferred turns on background commands and native tool cards.

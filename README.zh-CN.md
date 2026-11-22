@@ -2,18 +2,19 @@
 
 [English](./README.md) | 简体中文
 
-Antigravity+ 为 [Paseo](https://paseo.sh) 提供基于 `agy acp`（Antigravity CLI 内置 Agent Client Protocol 服务）的增强型 Antigravity 提供商（`antigravity-plus`），并在 Paseo 的 Usage 面板中集成 Antigravity 额度监控。
+Antigravity+ 为 [Paseo](https://paseo.sh) 提供基于 `agy acp`（Antigravity CLI 内置 Agent Client Protocol 服务）的增强型 Antigravity 提供商（`antigravity-plus`），补充多账号管理与手动切号、输入框额度快捷弹窗、缓存加速的多目录会话导入、运行中插话、自动标题同步与 Paseo 子代理编排。
 
 ## 核心特性
 
-- **重启后保留会话历史**：通过 ACP `session/load` 重新打开并回放历史对话。
-- **极速会话导入**：按当前工作区目录列出本地 `agy` CLI 会话（按更新时间倒序，带内存缓存与后台刷新），并自动过滤 `agy acp` 无法加载的 Antigravity 桌面端会话。
-- **斜杠命令与技能**：在 Paseo 输入框中支持 `/goal`、`/plan`、`/compact`、`/grill-me` 等斜杠命令与自定义技能补全。
+- **重启后保留会话历史**：通过 ACP `session/load` 重新打开并回放历史对话，在 Paseo 0.17.1+ 上自动等待尾段回放完成以防长对话丢尾。
+- **极速、多目录会话导入**：按当前工作区目录列出本地 `agy` CLI 会话（按更新时间倒序，带内存缓存与后台刷新），支持中文与 Windows 路径解码、多目录及历史 `/` 会话兜底，并自动过滤 `agy acp` 无法加载的 Antigravity 桌面端会话。
+- **斜杠命令与正文 `/` 技能补全**：将 `/goal`、`/plan`、`/compact`、`/grill-me` 等内置命令与自定义技能分开分类，在 Paseo 0.17.1+ 上支持正文中间输入 `/` 触发技能补全。
+- **原生工具卡片与后台命令守护（Paseo 0.17.1+）**：将 Shell 命令与输出、文件读写与 diff、网页搜索以及 Paseo MCP 调用映射为原生卡片；非守护型后台命令运行期间保持轮次活跃状态。
 - **完善的权限模式**：支持 `agy` 原生的 **Default**（新建代理默认启用，执行前询问权限）、**Accept edits**、**Auto**、**Plan** 模式，并额外提供可选的 **Bypass** 模式（不进终端沙箱，在流层以 `allow_once` 自动批准权限请求，不污染全局授权配置）。可在会话中按需切换，或在 **Settings → Antigravity+** 中自定义默认权限模式。
 - **按模型独立匹配思考档位**：根据 `agy` 的模型变体列表为不同模型提供专属档位（如 Gemini 4 Neon 与 Gemini 4 Hydrogen 支持 `XHigh`，GPT-OSS 与 Orchestrator 等无档位模型自动隐藏档位选择）。
-- **运行中插话（Steering）**：在运行轮次中发送新消息会直接并入当前轮次继续执行，不会打断重来。
-- **Paseo MCP 与子代理编排**：向 `agy` 透传 Paseo MCP 服务与系统指令，拦截不可见不可控的原生 `invoke_subagent`，引导模型统一使用 Paseo 的 `create_agent` 创建可见、可控的子代理标签页。
-- **上下文圆环与额度面板**：输入框实时展示上下文窗口占用。Windows 和 macOS 的 Usage 面板展示套餐名称、Gemini 共享池、Claude/GPT 额度和 Gemini 4 Argon 独立周限额。
+- **运行中插话与自动同步标题**：运行中发送的新消息会并入当前轮次继续执行；轮次结束后自动把 `agy` 生成的短标题同步到仍使用默认截断标题的 Paseo 代理，不覆盖手动命名。
+- **Paseo MCP 与子代理编排**：向 `agy` 透传 Paseo MCP 服务与系统指令，配置伴随钩子后拦截不可见不可控的原生 `invoke_subagent`，引导模型统一使用 Paseo 的 `create_agent` 创建可见、可控的子代理标签页。
+- **上下文圆环、Usage 面板与输入框额度弹窗**：输入框实时展示上下文窗口占用与 **额度** 快捷弹窗；Windows 和 macOS 的 Usage 面板展示套餐名称、Gemini 共享池、Claude/GPT 额度和 Gemini 4 Argon 独立周限额。
 
 ## 手动切换账号
 

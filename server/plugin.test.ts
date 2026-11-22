@@ -33,6 +33,7 @@ import {
   provisionalTitle,
   readAgyTitle,
 } from "./title-sync.ts";
+import { classifyCommand, keepsTurnOpen, mapToolCall } from "./tool-calls.ts";
 import type { PaseoApi } from "@getpaseo/client";
 
 test("copies the Paseo system prompt into agy's append meta", () => {
@@ -877,4 +878,66 @@ test("title sync never overwrites explicit, user-edited, or mid-wait renamed tit
     false,
   );
   assert.equal(renameCalls, 0);
+});
+
+test("classifyCommand distinguishes built-in agy commands from skills", () => {
+  assert.equal(classifyCommand({ name: "goal", description: "Goal" }).kind, "command");
+  assert.equal(classifyCommand({ name: "plan", description: "Plan" }).kind, "command");
+  assert.equal(classifyCommand({ name: "mountain-weather", description: "Weather" }).kind, "skill");
+});
+
+test("keepsTurnOpen holds turns for non-daemon background tools and releases daemon tools", () => {
+  const base = { id: "t1", name: "run_command", title: "Run", status: "in_progress" as const, output: null, locations: [] };
+  assert.equal(keepsTurnOpen({ ...base, input: { CommandLine: "npm test", IsDaemon: false } }), true);
+  assert.equal(keepsTurnOpen({ ...base, input: { CommandLine: "npm test" } }), true);
+  assert.equal(keepsTurnOpen({ ...base, input: { CommandLine: "npm run dev", IsDaemon: true } }), false);
+  assert.equal(keepsTurnOpen({ ...base, input: "plain" }), true);
+});
+
+test("mapToolCall maps native shell, read, write, search, and MCP calls into Paseo tool details", () => {
+  const ctx = { sessionId: "s1", mcpServerNames: ["paseo", "tavily"] };
+  const base = { id: "c1", title: "Tool", status: "completed" as const, locations: [] as string[] };
+
+  const shell = mapToolCall(
+    { ...base, name: "run_command", input: { CommandLine: "ls -la" }, output: { output: "a\nb", exit_code: 0 } },
+    ctx,
+  );
+  assert.deepEqual(shell.detail, { type: "shell", command: "ls -la", output: "a\nb", exitCode: 0 });
+
+  const shellText = mapToolCall(
+    { ...base, name: "run_command", input: { CommandLine: "pwd" }, output: "/tmp" },
+    ctx,
+  );
+  assert.deepEqual(shellText.detail, { type: "shell", command: "pwd", output: "/tmp", exitCode: undefined });
+
+  const write = mapToolCall(
+    { ...base, name: "write_file", input: { Path: "/tmp/a.txt", Content: "hi" }, output: null },
+    ctx,
+  );
+  assert.deepEqual(write.detail, { type: "write", filePath: "/tmp/a.txt", content: "hi" });
+
+  const search = mapToolCall(
+    { ...base, name: "search_web", input: { query: "paseo" }, output: null },
+    ctx,
+  );
+  assert.deepEqual(search.detail, { type: "search", toolName: "web_search", query: "paseo" });
+
+  const read = mapToolCall(
+    { ...base, name: "read_file", kind: "read", input: { Path: "/tmp/a.txt", StartLine: 10, EndLine: 25 }, output: "line10", locations: [] },
+    ctx,
+  );
+  assert.deepEqual(read.detail, { type: "read", filePath: "/tmp/a.txt", content: "line10", offset: 10, limit: 16 });
+
+  const mcp = mapToolCall(
+    { ...base, name: "mcp_paseo_create_agent", input: { title: "Worker", toolSummary: "Spawn" }, output: { id: "a1" } },
+    ctx,
+  );
+  assert.equal(mcp.name, "paseo.create_agent");
+  assert.deepEqual(mcp.detail, { type: "unknown", input: { title: "Worker" }, output: { id: "a1" } });
+
+  const ambiguous = mapToolCall(
+    { ...base, name: "mcp_foo_bar_baz", input: { x: 1 }, output: null },
+    { sessionId: "s1", mcpServerNames: ["foo", "foo_bar"] },
+  );
+  assert.equal(ambiguous.name, "mcp_foo_bar_baz");
 });
