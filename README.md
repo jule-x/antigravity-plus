@@ -2,6 +2,8 @@
 
 English | [简体中文](./README.zh-CN.md)
 
+> **No longer maintained (2026-11-24).** Paseo's built-in Antigravity provider now covers most of what this plugin was built for, so I've stopped developing Antigravity+. The repository is archived. Existing installs keep working at their current version, but they won't get fixes for future Paseo or agy releases. Use Paseo's built-in Antigravity provider instead.
+
 Antigravity+ adds an enhanced Antigravity provider (`antigravity-plus`) to [Paseo](https://paseo.sh) powered by `agy acp` (the Agent Client Protocol server built into the Antigravity CLI), adding multi-account switching, composer quota quick-view, cached multi-root session import, mid-turn steering, automatic title sync, and Paseo subagent routing.
 
 ## Features

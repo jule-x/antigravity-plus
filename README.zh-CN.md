@@ -2,6 +2,8 @@
 
 [English](./README.md) | 简体中文
 
+> **已停止维护（2026-11-24）。** Paseo 自带的 Antigravity provider 已经覆盖了本插件当初要解决的大部分问题，所以我不再开发 Antigravity+，仓库已归档。已安装的版本还能继续用，但不会再适配之后的 Paseo 和 agy 更新。请改用 Paseo 自带的 Antigravity provider。
+
 Antigravity+ 为 [Paseo](https://paseo.sh) 提供基于 `agy acp`（Antigravity CLI 内置 Agent Client Protocol 服务）的增强型 Antigravity 提供商（`antigravity-plus`），补充多账号管理与手动切号、输入框额度快捷弹窗、缓存加速的多目录会话导入、运行中插话、自动标题同步与 Paseo 子代理编排。
 
 ## 核心特性
