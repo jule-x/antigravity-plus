@@ -6,7 +6,7 @@ import {
 } from "@getpaseo/plugin/server/usage";
 import { z } from "zod";
 
-/** `v1internal:retrieveUserQuotaSummary`: grouped limits with named windows. */
+/** Grouped limits with named windows, filled from `agy -p /usage` by `parseAgyUsage`. */
 export const quotaSummarySchema = z.object({
   groups: z
     .array(
@@ -29,24 +29,65 @@ export const quotaSummarySchema = z.object({
     .default([]),
 });
 
-/** `v1internal:fetchAvailableModels`: per-model quota without a reported window length. */
-export const availableModelsSchema = z.object({
-  models: z
-    .record(
-      z.string(),
-      z.object({
-        displayName: z.string().optional(),
-        modelProvider: z.string().optional(),
-        quotaInfo: z
-          .object({ remainingFraction: z.number().optional(), resetTime: z.string().optional() })
-          .optional(),
+export type QuotaSummary = z.infer<typeof quotaSummarySchema>;
+
+/** `agy -p /usage --output-format json`, the official CLI reading its own login's quota. */
+const agyUsageSchema = z.object({
+  status: z.string(),
+  error: z.string().optional().catch(undefined),
+  command: z
+    .object({
+      data: z.object({
+        groups: z
+          .array(
+            z.object({
+              name: z.string().default(""),
+              description: z.string().optional(),
+              buckets: z
+                .array(
+                  z.object({
+                    id: z.string(),
+                    name: z.string().optional(),
+                    window: z.string().optional(),
+                    reset_time: z.string().optional(),
+                    remaining_fraction: z.number().optional(),
+                    disabled: z.boolean().optional(),
+                  }),
+                )
+                .default([]),
+            }),
+          )
+          .default([]),
       }),
-    )
-    .default({}),
+    })
+    .optional(),
 });
 
-export type QuotaSummary = z.infer<typeof quotaSummarySchema>;
-export type AvailableModels = z.infer<typeof availableModelsSchema>;
+/**
+ * Reads quota only through agy itself. Google told third-party clients that calling its
+ * internal `cloudcode-pa` quota APIs directly can get an account flagged, so this plugin no longer does.
+ */
+export function parseAgyUsage(stdout: string): QuotaSummary {
+  const parsed = agyUsageSchema.parse(JSON.parse(stdout));
+  if (parsed.status !== "SUCCESS" || !parsed.command) {
+    throw new Error(parsed.error ?? `agy /usage returned ${parsed.status}`);
+  }
+  return quotaSummarySchema.parse({
+    groups: parsed.command.data.groups.map((group) => ({
+      displayName: group.name,
+      description: group.description,
+      buckets: group.buckets
+        .filter((bucket) => !bucket.disabled)
+        .map((bucket) => ({
+          bucketId: bucket.id,
+          displayName: bucket.name,
+          window: bucket.window,
+          resetTime: bucket.reset_time,
+          remainingFraction: bucket.remaining_fraction,
+        })),
+    })),
+  });
+}
 
 function usedPct(remainingFraction: number | undefined): number | null {
   if (typeof remainingFraction !== "number" || !Number.isFinite(remainingFraction)) return null;
@@ -124,41 +165,4 @@ export function summaryWindows(summary: QuotaSummary): UsageWindow[] {
     }
   }
   return windows;
-}
-
-export function summaryCoversGoogle(summary: QuotaSummary): boolean {
-  return summary.groups.some((group) =>
-    /gemini|google/i.test(`${group.displayName} ${group.description ?? ""}`),
-  );
-}
-
-/**
- * Fallback for when retrieveUserQuotaSummary omits Google models: fetchAvailableModels reports a
- * remaining fraction and reset per model with no window length. One window with a stable ID shows
- * the most depleted listed Google agent model.
- */
-export function googlePoolWindows(models: AvailableModels, summary: QuotaSummary): UsageWindow[] {
-  if (summaryCoversGoogle(summary)) return [];
-  let lowest: { remaining: number; reset: string } | null = null;
-  for (const model of Object.values(models.models)) {
-    const quota = model.quotaInfo;
-    if (model.modelProvider !== "MODEL_PROVIDER_GOOGLE") continue;
-    // Models without a reset are tab-completion helpers, not agent models.
-    if (!quota?.resetTime || typeof quota.remainingFraction !== "number") continue;
-    if (lowest === null || quota.remainingFraction < lowest.remaining) {
-      lowest = { remaining: quota.remainingFraction, reset: quota.resetTime };
-    }
-  }
-  if (lowest === null) return [];
-  const used = usedPct(lowest.remaining);
-  return [
-    windowFromReportedDuration({
-      durationSeconds: null,
-      unknown: { id: "google-models", label: "Gemini", shortLabel: "Gemini" },
-      utilizationPct: used,
-      resetsAt: lowest.reset,
-      summary: true,
-      tone: toneFromUsedPct(used),
-    }),
-  ];
 }

@@ -19,7 +19,9 @@ The companion agy plugin enforces the `invoke_subagent` restriction. It uses a P
 
 ## Quota
 
-The quota source reads agy's Google login from macOS Keychain (service `gemini`) or Windows Credential Manager (`gemini:antigravity`) and asks Google's Antigravity backend (`daily-cloudcode-pa.googleapis.com`) for quota using the installed `agy` CLI version header (`antigravity/cli/<version>`). It reports the plan name along with the quota groups returned by the backend: weekly and 5-hour limits for the shared Gemini pool (Gemini 4 Neon, Gemini 4 Hydrogen, Orchestrator (Neon) and Gemini 3.8 Flash), weekly and 5-hour limits for Claude and GPT models, and the separate weekly limit for Gemini 4 Argon (Pro plans). If the summary omits Google models, it falls back to `fetchAvailableModels`. The access token is used only for these requests. When it expires, the source runs `agy models` so agy can refresh the active login.
+The quota source runs the official `agy -p /usage --output-format json` and shows the groups agy reports: weekly and 5-hour limits for the shared Gemini pool (Gemini 4 Neon, Gemini 4 Hydrogen, Orchestrator (Neon) and Gemini 3.8 Flash), weekly and 5-hour limits for Claude and GPT models, and the separate weekly limit for Gemini 4 Argon (Pro plans). The plugin reads agy's stored login from macOS Keychain (service `gemini`) or Windows Credential Manager (`gemini:antigravity`) only to check which account is active, and never sends the token anywhere. When the login has expired, it runs `agy models` so agy can refresh it.
+
+Versions up to 0.3.0 called Google's internal `cloudcode-pa.googleapis.com` quota APIs directly. Google has told third-party clients that this can get an account flagged, so 0.3.1 removed those calls.
 
 ## Manual account switching
 

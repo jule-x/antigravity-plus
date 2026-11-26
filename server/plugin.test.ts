@@ -21,12 +21,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { wrapConnection } from "./session-wrapper.ts";
-import {
-  availableModelsSchema,
-  googlePoolWindows,
-  quotaSummarySchema,
-  summaryWindows,
-} from "./quota-windows.ts";
+import { parseAgyUsage, quotaSummarySchema, summaryWindows } from "./quota-windows.ts";
 import {
   createTitleSyncer,
   extractAgySessionId,
@@ -271,29 +266,43 @@ test("maps the quota summary to weekly and five-hour windows", () => {
   assert.equal(windows[0].resetsAt, "2026-11-18T06:25:56Z");
 });
 
-test("publishes one neutral window for the shared Google model pool", () => {
-  const models = availableModelsSchema.parse({
-    models: {
-      "gemini-4-hydrogen-sonar": {
-        modelProvider: "MODEL_PROVIDER_GOOGLE",
-        quotaInfo: { remainingFraction: 0.93359333, resetTime: "2026-11-17T11:05:18Z" },
-      },
-      "gemini-3.8-flash-tiered": {
-        modelProvider: "MODEL_PROVIDER_GOOGLE",
-        quotaInfo: { remainingFraction: 0.93359333, resetTime: "2026-11-17T11:05:18Z" },
-      },
-      chat_20706: { modelProvider: "MODEL_PROVIDER_GOOGLE", quotaInfo: { remainingFraction: 1 } },
-      "claude-opus-5-5-high": {
-        modelProvider: "MODEL_PROVIDER_ANTHROPIC",
-        quotaInfo: { remainingFraction: 1, resetTime: "2026-11-17T12:45:46Z" },
+test("reads quota from agy /usage JSON into the same windows", () => {
+  const stdout = JSON.stringify({
+    status: "SUCCESS",
+    command: {
+      data: {
+        description: "usage",
+        groups: [
+          {
+            name: "Gemini Models",
+            description: "Models within this group: Gemini 4 Neon",
+            buckets: [
+              { id: "gemini-weekly", name: "Weekly Limit Remaining", window: "weekly", remaining_fraction: 0.893, reset_time: "2026-11-25T00:21:52Z" },
+              { id: "gemini-5h", name: "Five Hour Limit Remaining", window: "5h", remaining_fraction: 0.933, reset_time: "2026-11-19T04:42:41Z" },
+            ],
+          },
+          {
+            name: "Claude and GPT models",
+            buckets: [
+              { id: "3p-weekly", name: "Weekly Limit Remaining", window: "weekly", remaining_fraction: 0.835116, reset_time: "2026-11-18T06:25:56Z" },
+              { id: "3p-5h", name: "Five Hour Limit Remaining", window: "5h", disabled: true },
+            ],
+          },
+        ],
       },
     },
   });
-  const windows = googlePoolWindows(models, summary);
-  assert.equal(windows.length, 1);
-  assert.equal(windows[0].id, "google-models");
-  assert.equal(windows[0].label, "Gemini");
-  assert.equal(windows[0].usedPct, 6.6);
+  const windows = summaryWindows(parseAgyUsage(stdout));
+  assert.deepEqual(
+    windows.map((window) => [window.id, window.label, window.usedPct]),
+    [
+      ["group-gemini:weekly", "Gemini · Weekly", 10.7],
+      ["group-gemini:five_hour", "Gemini · 5-hour", 6.7],
+      ["group-3p:weekly", "Claude and GPT · Weekly", 16.5],
+    ],
+  );
+  assert.equal(windows[0].resetsAt, "2026-11-25T00:21:52Z");
+  assert.throws(() => parseAgyUsage(JSON.stringify({ status: "ERROR", error: "not signed in" })), /not signed in/);
 });
 
 test("maps Gemini, Claude/GPT, and Gemini 4 Argon groups when all are in the quota summary", () => {
@@ -346,15 +355,6 @@ test("maps Gemini, Claude/GPT, and Gemini 4 Argon groups when all are in the quo
       ["group-gemini-argon-wtu:weekly", "Gemini 4 Argon · Weekly", "Gemini 4 Argon wk", 66.4],
     ],
   );
-  const models = availableModelsSchema.parse({
-    models: {
-      "gemini-4-neon-high": {
-        modelProvider: "MODEL_PROVIDER_GOOGLE",
-        quotaInfo: { remainingFraction: 0.933, resetTime: "2026-11-19T04:42:41Z" },
-      },
-    },
-  });
-  assert.deepEqual(googlePoolWindows(models, fullSummary), []);
 });
 
 const promptA = {

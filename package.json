@@ -1,7 +1,7 @@
 {
   "name": "antigravity-plus",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Antigravity through agy's ACP server: history after restart, session import, slash commands and skills, permission modes, context usage, and quota.",
   "license": "MIT",
   "repository": {

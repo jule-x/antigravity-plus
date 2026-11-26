@@ -9,24 +9,16 @@ import {
 import { z } from "zod";
 import { accountId, SLOT_SERVICE, SLOT_ACCOUNT, type AccountManager, type KeychainStore } from "./accounts.ts";
 import { execAgy } from "./agy-launch.ts";
-import {
-  availableModelsSchema,
-  googlePoolWindows,
-  quotaSummarySchema,
-  summaryCoversGoogle,
-  summaryWindows,
-} from "./quota-windows.ts";
+import { parseAgyUsage, summaryWindows, type QuotaSummary } from "./quota-windows.ts";
 
-const API_BASE = "https://daily-cloudcode-pa.googleapis.com/v1internal";
-/** Fallback CLI version when `agy --version` cannot be read; backend gates Gemini/Argon groups on `antigravity/cli/`. */
-const FALLBACK_CLI_VERSION = "1.5.11";
 /** Providers whose sessions run on agy's own login. */
 const AGY_PROVIDERS = new Set(["antigravity-plus", "antigravity"]);
 /** Treat a token this close to expiry as expired; a fetch takes a few seconds. */
 const EXPIRY_MARGIN_MS = 60_000;
 /** Paseo gives each login fetch 20 seconds, so the agy refresh must finish well inside it. */
 const REFRESH_TIMEOUT_MS = 12_000;
-const REQUEST_TIMEOUT_MS = 6_000;
+/** `agy -p /usage` takes about 6 to 8 seconds. */
+const USAGE_TIMEOUT_MS = 15_000;
 
 const input = z.object({ accountId: z.string().min(1) }).strict();
 
@@ -64,77 +56,28 @@ function isExpired(credential: Credential): boolean {
   return expiry !== null && expiry - EXPIRY_MARGIN_MS <= Date.now();
 }
 
-async function readAgyVersion(launch: ProviderLaunch | undefined): Promise<string> {
-  try {
-    const { stdout } = await execAgy(["--version"], 5_000, launch);
-    return /(\d+\.\d+\.\d+)/.exec(stdout)?.[1] ?? FALLBACK_CLI_VERSION;
-  } catch {
-    return FALLBACK_CLI_VERSION;
-  }
-}
-
+/**
+ * Quota comes only from the official CLI (`agy -p /usage`). Google told third-party clients that
+ * calling its internal `cloudcode-pa` quota APIs can get an account flagged, so nothing here
+ * sends agy's token anywhere.
+ */
 export function createAccountQuota(store: KeychainStore, getLaunch: () => ProviderLaunch | undefined): AccountQuota {
-  let lastLaunch: ProviderLaunch | undefined;
-  let version: Promise<string> | undefined;
-  return new AccountQuota(store, async token => {
-    const launch = getLaunch();
-    if (!version || lastLaunch !== launch) {
-      lastLaunch = launch;
-      version = readAgyVersion(launch);
-    }
-    return requestReport(token, `antigravity/cli/${await version}`);
+  return new AccountQuota(store, async () => {
+    const { stdout } = await execAgy(["-p", "/usage", "--output-format", "json"], USAGE_TIMEOUT_MS, getLaunch());
+    return usageReport(parseAgyUsage(stdout));
   }, async () => {
     await execAgy(["models"], REFRESH_TIMEOUT_MS, getLaunch()).catch(() => undefined);
   });
-}
-
-class EligibilityError extends Error {}
-
-function optionalQuotaData(error: unknown): null {
-  if (error instanceof EligibilityError) throw error;
-  return null;
-}
-
-class HttpRejected extends Error {
-  readonly status: number;
-  constructor(status: number) {
-    super(`Antigravity quota request was rejected (${status})`);
-    this.status = status;
-  }
-}
-
-async function post(method: string, token: string, body: unknown, userAgent: string): Promise<unknown> {
-  const response = await fetch(`${API_BASE}:${method}`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-      "user-agent": userAgent,
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    const body = await response.text();
-    if (/eligibility check failed|not eligible|verify your account/i.test(body)) {
-      // Only expose the verification URL, never the full API response.
-      const verification = /https:\/\/(?:[a-z0-9-]+\.)*google\.com\/[^\s"<>\\]*/i.exec(body)?.[0];
-      throw new EligibilityError(`Antigravity account verification required${verification ? " · " + verification : ""}`);
-    }
-    if (response.status === 401 || response.status === 403) throw new HttpRejected(response.status);
-  }
-  if (!response.ok) throw new Error(`Antigravity quota request ${method} failed (${response.status})`);
-  return response.json();
 }
 
 export class AccountQuota {
   private refreshing = new Map<string, Promise<void>>();
   private writers = new Set<Promise<void>>();
   private store: KeychainStore;
-  private request: (token: string) => Promise<UsageReport>;
+  private request: () => Promise<UsageReport>;
   private runRefresh: () => Promise<void>;
 
-  constructor(store: KeychainStore, request: (token: string) => Promise<UsageReport>, runRefresh: () => Promise<void>) {
+  constructor(store: KeychainStore, request: () => Promise<UsageReport>, runRefresh: () => Promise<void>) {
     this.store = store;
     this.request = request;
     this.runRefresh = runRefresh;
@@ -195,27 +138,7 @@ export class AccountQuota {
         refreshedBy: "agy",
       });
     }
-    let rejectedStatus: number;
-    try {
-      return await this.request(credential.token.access_token);
-    } catch (error) {
-      if (!(error instanceof HttpRejected)) throw error;
-      rejectedStatus = error.status;
-    }
-    // Rejected before the stored expiry (revoked token, clock skew): let agy refresh once.
-    await refresh();
-    const refreshed = await read();
-    if (refreshed.token.access_token === credential.token.access_token) {
-      return unavailable({ kind: "rejected", status: rejectedStatus, refreshedBy: "agy" });
-    }
-    try {
-      return await this.request(refreshed.token.access_token);
-    } catch (error) {
-      if (error instanceof HttpRejected) {
-        return unavailable({ kind: "rejected", status: error.status, refreshedBy: "agy" });
-      }
-      throw error;
-    }
+    return this.request();
   }
 
   async verify(id: string): Promise<UsageReport> {
@@ -225,38 +148,12 @@ export class AccountQuota {
   }
 }
 
-async function requestReport(token: string, userAgent: string): Promise<UsageReport> {
-  const [summaryRaw, tierRaw] = await Promise.all([
-    post("retrieveUserQuotaSummary", token, {}, userAgent),
-    post(
-      "loadCodeAssist",
-      token,
-      { metadata: { ideType: "ANTIGRAVITY", pluginType: "GEMINI" } },
-      userAgent,
-    ).catch(optionalQuotaData),
-  ]);
-  const summary = quotaSummarySchema.parse(summaryRaw);
-  const tier = z
-    .object({
-      paidTier: z.object({ name: z.string() }).optional(),
-      currentTier: z.object({ name: z.string() }).optional(),
-    })
-    .safeParse(tierRaw);
-  const windows = [...summaryWindows(summary)];
-  if (!summaryCoversGoogle(summary)) {
-    const modelsRaw = await post("fetchAvailableModels", token, {}, userAgent).catch(optionalQuotaData);
-    if (modelsRaw !== null) {
-      windows.push(...googlePoolWindows(availableModelsSchema.parse(modelsRaw), summary));
-    }
-  }
+function usageReport(summary: QuotaSummary): UsageReport {
+  const windows = summaryWindows(summary);
   if (windows.length === 0) {
     return unavailable({ kind: "no_quota", detail: "Antigravity reported no quota windows" });
   }
-  return {
-    status: "available",
-    planLabel: tier.success ? (tier.data.paidTier?.name ?? tier.data.currentTier?.name) : undefined,
-    windows,
-  };
+  return { status: "available", windows };
 }
 
 type QuotaAccounts = Pick<AccountManager, "reconcile" | "snapshot" | "isCurrent" | "recordReport" | "epoch">;

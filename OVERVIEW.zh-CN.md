@@ -19,7 +19,9 @@ Antigravity+ 为 Paseo 提供基于 `agy acp`（Antigravity CLI 内置的 Agent 
 
 ## 额度监控
 
-额度数据源从 Windows 凭据管理器（`gemini:antigravity`）或 macOS 钥匙串（服务名 `gemini`）读取 agy 的 Google 登录凭据，并带上本机 `agy` CLI 版本标识（`antigravity/cli/<version>`）向 Google 的 Antigravity 后端（`daily-cloudcode-pa.googleapis.com`）查询额度。面板展示套餐名称和后端返回的额度组，包括 Gemini 共享池和 Claude/GPT 的周限额与 5 小时限额，以及 Pro 套餐下 Gemini 4 Argon 的独立周限额。若摘要接口未返回 Google 模型组，则回退查询 `fetchAvailableModels`。访问令牌过期时，插件会执行一次 `agy models`，由 agy 刷新当前登录。
+额度数据源运行官方的 `agy -p /usage --output-format json`，展示 agy 返回的额度组：Gemini 共享池和 Claude/GPT 的周限额与 5 小时限额，以及 Pro 套餐下 Gemini 4 Argon 的独立周限额。插件读取 Windows 凭据管理器（`gemini:antigravity`）或 macOS 钥匙串（服务名 `gemini`）里的 agy 登录凭据，只用来确认当前是哪个账号，不会把令牌发往任何地方。登录过期时，插件会执行一次 `agy models`，由 agy 刷新当前登录。
+
+0.3.0 及更早版本会直接调用 Google 内部的 `cloudcode-pa.googleapis.com` 额度接口。Google 已告知第三方客户端这样做可能导致账号被标记，所以 0.3.1 删掉了这些调用。
 
 ## 手动切换账号
 

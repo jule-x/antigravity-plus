@@ -4,6 +4,9 @@
 
 > **已停止维护（2026-11-24）。** Paseo 自带的 Antigravity provider 已经覆盖了本插件当初要解决的大部分问题，所以我不再开发 Antigravity+，仓库已归档。已安装的版本还能继续用，但不会再适配之后的 Paseo 和 agy 更新。请改用 Paseo 自带的 Antigravity provider。
 
+> [!WARNING]
+> **账号安全修复（v0.3.1，2026-11-27）。** 0.3.0 及更早版本会拿 agy 的登录令牌，直接调用 Google 内部接口 `cloudcode-pa.googleapis.com`（`retrieveUserQuotaSummary`、`fetchAvailableModels`、`loadCodeAssist`）查额度。Google 已告知第三方客户端，调用这些接口可能导致账号被标记（[T3 Code 已删掉同类代码](https://github.com/pingdotgg/t3code/pull/43026)）。v0.3.1 改为只通过官方的 `agy -p /usage` 读取额度。如果你装的是 0.3.0 或更早版本（包括 Paseo 插件目录里收录的版本），请卸载并改用 Paseo 自带的 Antigravity provider，或从本仓库 `main` 分支重新安装。
+
 Antigravity+ 为 [Paseo](https://paseo.sh) 提供基于 `agy acp`（Antigravity CLI 内置 Agent Client Protocol 服务）的增强型 Antigravity 提供商（`antigravity-plus`），补充多账号管理与手动切号、输入框额度快捷弹窗、缓存加速的多目录会话导入、运行中插话、自动标题同步与 Paseo 子代理编排。
 
 ## 核心特性
@@ -16,7 +19,7 @@ Antigravity+ 为 [Paseo](https://paseo.sh) 提供基于 `agy acp`（Antigravity 
 - **按模型独立匹配思考档位**：根据 `agy` 的模型变体列表为不同模型提供专属档位（如 Gemini 4 Neon 与 Gemini 4 Hydrogen 支持 `XHigh`，GPT-OSS 与 Orchestrator 等无档位模型自动隐藏档位选择）。
 - **运行中插话与自动同步标题**：运行中发送的新消息会并入当前轮次继续执行；轮次结束后自动把 `agy` 生成的短标题同步到仍使用默认截断标题的 Paseo 代理，不覆盖手动命名。
 - **Paseo MCP 与子代理编排**：向 `agy` 透传 Paseo MCP 服务与系统指令，配置伴随钩子后拦截不可见不可控的原生 `invoke_subagent`，引导模型统一使用 Paseo 的 `create_agent` 创建可见、可控的子代理标签页。
-- **上下文圆环、Usage 面板与输入框额度弹窗**：输入框实时展示上下文窗口占用与 **额度** 快捷弹窗；Windows 和 macOS 的 Usage 面板展示套餐名称、Gemini 共享池、Claude/GPT 额度和 Gemini 4 Argon 独立周限额。
+- **上下文圆环、Usage 面板与输入框额度弹窗**：输入框实时展示上下文窗口占用与 **额度** 快捷弹窗；Windows 和 macOS 的 Usage 面板展示 Gemini 共享池、Claude/GPT 额度和 Gemini 4 Argon 独立周限额，数据来自官方的 `agy -p /usage`。
 
 ## 手动切换账号
 

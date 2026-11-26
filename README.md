@@ -4,6 +4,9 @@ English | [简体中文](./README.zh-CN.md)
 
 > **No longer maintained (2026-11-24).** Paseo's built-in Antigravity provider now covers most of what this plugin was built for, so I've stopped developing Antigravity+. The repository is archived. Existing installs keep working at their current version, but they won't get fixes for future Paseo or agy releases. Use Paseo's built-in Antigravity provider instead.
 
+> [!WARNING]
+> **Account-safety fix (v0.3.1, 2026-11-27).** Versions up to 0.3.0 read quota by calling Google's internal `cloudcode-pa.googleapis.com` APIs (`retrieveUserQuotaSummary`, `fetchAvailableModels`, `loadCodeAssist`) with agy's login token. Google has told third-party clients that calling these APIs can get an account flagged ([T3 Code removed the same code](https://github.com/pingdotgg/t3code/pull/43026)). v0.3.1 reads quota only through the official `agy -p /usage`. If you installed 0.3.0 or earlier, including the version listed in the Paseo plugin directory, uninstall it and use Paseo's built-in Antigravity provider, or reinstall from this repository's `main` branch.
+
 Antigravity+ adds an enhanced Antigravity provider (`antigravity-plus`) to [Paseo](https://paseo.sh) powered by `agy acp` (the Agent Client Protocol server built into the Antigravity CLI), adding multi-account switching, composer quota quick-view, cached multi-root session import, mid-turn steering, automatic title sync, and Paseo subagent routing.
 
 ## Features
@@ -16,7 +19,7 @@ Antigravity+ adds an enhanced Antigravity provider (`antigravity-plus`) to [Pase
 - **Per-model thinking levels**: Derives each model's supported thinking levels from `agy`'s variant catalog (including `XHigh` for Gemini 4 Neon and Gemini 4 Hydrogen, and no thinking selector for level-less models like GPT-OSS and Orchestrator).
 - **Mid-turn steering & automatic title sync**: Messages sent during an active turn join the running turn instead of interrupting it, and `agy`'s generated conversation titles automatically replace Paseo's provisional 60-character titles without overwriting user-edited names.
 - **Paseo MCP & subagent orchestration**: Forwards Paseo's MCP servers and agent system instructions to `agy`, and (with the companion hook installed) redirects subagent creation from `agy`'s hidden `invoke_subagent` to Paseo's visible, controllable `create_agent`.
-- **Context window, Usage panel & composer quota**: Reports live context window usage in the composer, displays Gemini (Weekly & 5-hour shared pool for Neon/Hydrogen/Flash), Claude/GPT (Weekly & 5-hour), and Gemini 4 Argon (Weekly) quota windows on macOS and Windows, and exposes a quick **Quota** popover directly in the composer.
+- **Context window, Usage panel & composer quota**: Reports live context window usage in the composer, displays Gemini (Weekly & 5-hour shared pool for Neon/Hydrogen/Flash), Claude/GPT (Weekly & 5-hour), and Gemini 4 Argon (Weekly) quota windows on macOS and Windows as read by the official `agy -p /usage`, and exposes a quick **Quota** popover directly in the composer.
 
 ## Manual account switching
 
